@@ -4,7 +4,7 @@
 **PR Title:** add usage telemetry schema, MCP tools, and feedback collection for skills platform
 **Risk Level:** Medium
 **Estimated Effort:** High (~3-4 days)
-**Files Modified:** 3 (`packages/claudefather-mcp/src/index.ts`, `packages/web/src/app/api/...`, `global/skills/session-handoff/SKILL.md`)
+**Files Modified:** 3 (`packages/mcp-server/src/server.ts`, `packages/web/src/app/api/...`, `global/skills/session-handoff/SKILL.md`)
 **Files Created:** 14
 
 ---
@@ -17,7 +17,7 @@ The claudefather maintainer is flying blind on skill adoption. With 38 skills di
 
 ## Dependencies
 
-- **Depends on:** Phase 01 (Skill Registry & MCP Server) -- requires the PostgreSQL database with `users` table, the `claudefather-mcp` npm package, the Next.js web app with authentication, and the API token system.
+- **Depends on:** Phase 01 (Skill Registry & MCP Server) -- requires the PostgreSQL database with `users` table, the Railway-hosted MCP server, the Next.js web app with authentication, and the API token system.
 - **Unlocks:** Phase 04 (Workshop -- needs telemetry data to display usage stats and feedback), Phase 05 (Team Dashboard -- needs aggregate telemetry for admin views).
 - **Parallel safety:** This phase touches completely different files than Phase 03 (Intelligence Pipeline). They can run in parallel after Phase 01 completes.
 
@@ -160,9 +160,9 @@ model User {
 
 ### Step 2: MCP Telemetry Tools
 
-Add two new tools to the `claudefather-mcp` package. Phase 01 establishes the MCP server with tool registration in `packages/claudefather-mcp/src/index.ts` (or equivalent entry point). This step adds tools to that registration.
+Add two new tools to the Railway-hosted MCP server. Phase 01 establishes the MCP server with tool registration in `packages/mcp-server/src/server.ts`. This step adds tools to that registration.
 
-**New file:** `packages/claudefather-mcp/src/tools/log-invocation.ts`
+**New file:** `packages/mcp-server/src/tools/log-invocation.ts`
 
 ```typescript
 import { z } from "zod";
@@ -178,40 +178,38 @@ export type LogInvocationInput = z.infer<typeof logInvocationSchema>;
 
 /**
  * Fire-and-forget invocation logging.
- * Returns immediately with an acknowledgment. The actual API call
+ * Returns immediately with an acknowledgment. The DB insert
  * happens asynchronously so it never blocks the Claude session.
  */
 export async function handleLogInvocation(
   input: LogInvocationInput,
-  apiBaseUrl: string,
-  apiKey: string
+  db: DbClient,
+  user: { id: string }
 ): Promise<string> {
   // Fire-and-forget: do NOT await this promise.
   // The caller (tool handler) should call this and return immediately.
-  fetch(`${apiBaseUrl}/api/telemetry/invocation`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      skill_slug: input.skill_slug,
-      session_id: input.session_id,
+  db.insert(skillInvocations)
+    .values({
+      userId: user.id,
+      skillSlug: input.skill_slug,
+      sessionId: input.session_id,
       success: input.success ?? null,
-      duration_ms: input.duration_ms ?? null,
-    }),
-  }).catch((err) => {
-    // Silently swallow errors -- telemetry must never break the session
-    console.error("[claudefather-mcp] telemetry error:", err.message);
-  });
+      durationMs: input.duration_ms ?? null,
+    })
+    .catch((err) => {
+      // Silently swallow errors -- telemetry must never break the session
+      console.error("[claudefather-mcp-server] telemetry error:", err.message);
+    });
 
   return "Invocation logged.";
 }
 ```
 
-**Why fire-and-forget:** The MCP tool returns "Invocation logged." immediately. The HTTP request to the API runs asynchronously. If the API is down, the error is swallowed. Telemetry must never block or fail a user's Claude session.
+**Why fire-and-forget:** The MCP tool returns "Invocation logged." immediately. The DB insert runs asynchronously. If the database is unreachable, the error is swallowed. Telemetry must never block or fail a user's Claude session.
 
-**New file:** `packages/claudefather-mcp/src/tools/session-feedback.ts`
+**Why direct DB instead of API call:** Since the MCP server is hosted on Railway (not local), it connects directly to Neon PostgreSQL — no HTTP hop to the web API needed.
+
+**New file:** `packages/mcp-server/src/tools/session-feedback.ts`
 
 ```typescript
 import { z } from "zod";
@@ -236,45 +234,41 @@ export type SessionFeedbackInput = z.infer<typeof sessionFeedbackSchema>;
  */
 export async function handleSessionFeedback(
   input: SessionFeedbackInput,
-  apiBaseUrl: string,
-  apiKey: string
+  db: DbClient,
+  user: { id: string }
 ): Promise<string> {
-  const response = await fetch(`${apiBaseUrl}/api/telemetry/feedback`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      session_id: input.session_id,
-      ratings: input.ratings,
-    }),
-  });
+  const records = input.ratings.map((r) => ({
+    userId: user.id,
+    skillSlug: r.skill_slug,
+    rating: r.rating,
+    comment: r.comment ? r.comment.replace(/<[^>]*>/g, "").slice(0, 1000) : null,
+    sessionId: input.session_id,
+  }));
 
-  if (!response.ok) {
-    const body = await response.text();
-    return `Failed to submit feedback (${response.status}): ${body}`;
+  try {
+    await db.insert(skillFeedback).values(records);
+    return `Feedback submitted for ${records.length} skill(s). Thank you!`;
+  } catch (err) {
+    return `Failed to submit feedback: ${(err as Error).message}`;
   }
-
-  const result = await response.json();
-  return `Feedback submitted for ${result.count} skill(s). Thank you!`;
 }
 ```
 
-**Register both tools in the MCP server entry point.** In `packages/claudefather-mcp/src/index.ts`, add to the tool registration (the exact pattern depends on Phase 01's MCP framework choice -- likely `@modelcontextprotocol/sdk`):
+**Register both tools in the MCP server.** In `packages/mcp-server/src/server.ts`, add to the tool registration (using `@modelcontextprotocol/sdk`):
 
 ```typescript
 import { logInvocationSchema, handleLogInvocation } from "./tools/log-invocation.js";
 import { sessionFeedbackSchema, handleSessionFeedback } from "./tools/session-feedback.js";
 
 // Inside the tool registration block (Phase 01 establishes the pattern):
+// `db` is the Drizzle client, `config.user` is the authenticated user
 
 server.tool(
   "claudefather_log_invocation",
   "Log a skill invocation for usage telemetry. Fire-and-forget -- returns immediately.",
   logInvocationSchema.shape,
   async (input) => {
-    const message = await handleLogInvocation(input, API_BASE_URL, API_KEY);
+    const message = await handleLogInvocation(input, db, config.user);
     return { content: [{ type: "text", text: message }] };
   }
 );
@@ -284,13 +278,13 @@ server.tool(
   "Submit end-of-session skill ratings and feedback.",
   sessionFeedbackSchema.shape,
   async (input) => {
-    const message = await handleSessionFeedback(input, API_BASE_URL, API_KEY);
+    const message = await handleSessionFeedback(input, db, config.user);
     return { content: [{ type: "text", text: message }] };
   }
 );
 ```
 
-`API_BASE_URL` and `API_KEY` come from environment variables set in the MCP server config (Phase 01 establishes `CLAUDEFATHER_API_KEY`; add `CLAUDEFATHER_API_URL` defaulting to the production URL).
+The MCP server connects directly to Neon PostgreSQL (same database as the web app). The `db` Drizzle client and `config.user` (authenticated from API key) are passed from the server setup in Phase 01.
 
 ### Step 3: API Endpoints
 
@@ -854,20 +848,20 @@ Note: `claudefather_sync` and `claudefather_check_updates` are Phase 01 tools. I
 
 ### Unit Tests
 
-**New file:** `packages/claudefather-mcp/src/tools/__tests__/log-invocation.test.ts`
+**New file:** `packages/mcp-server/src/tools/__tests__/log-invocation.test.ts`
 
-1. **Valid invocation log** -- call `handleLogInvocation` with all fields, verify fetch is called with correct URL and body
+1. **Valid invocation log** -- call `handleLogInvocation` with all fields, verify DB insert is called with correct values
 2. **Minimal invocation log** -- call with only required fields (skill_slug, session_id), verify optional fields default to null
-3. **API failure** -- mock fetch to reject, verify function returns acknowledgment (does not throw)
-4. **Fire-and-forget semantics** -- verify the function returns before fetch completes
+3. **DB failure** -- mock DB insert to reject, verify function returns acknowledgment (does not throw)
+4. **Fire-and-forget semantics** -- verify the function returns before DB insert completes
 
-**New file:** `packages/claudefather-mcp/src/tools/__tests__/session-feedback.test.ts`
+**New file:** `packages/mcp-server/src/tools/__tests__/session-feedback.test.ts`
 
-1. **Valid feedback submission** -- call with session_id and ratings array, verify POST body and response parsing
+1. **Valid feedback submission** -- call with session_id and ratings array, verify DB insert with correct values
 2. **Invalid rating value** -- rating of 0 or 6 should be rejected by zod schema
 3. **Empty ratings array** -- should be rejected by zod schema (min 1)
 4. **Comment sanitization** -- HTML tags stripped, length capped at 1000 characters
-5. **API failure** -- mock 500 response, verify error message returned (not thrown)
+5. **DB failure** -- mock DB insert to reject, verify error message returned (not thrown)
 
 ### API Endpoint Tests
 
@@ -962,7 +956,7 @@ No changes needed in this phase. The MCP server and platform features are docume
 | Case | Expected Behavior |
 |------|-------------------|
 | MCP server not configured | Telemetry hook writes to local file; session-handoff skips MCP calls silently |
-| MCP server configured but API down | `handleLogInvocation` swallows error; session-handoff reports "could not submit" but does not fail |
+| MCP server configured but Railway down | `handleLogInvocation` swallows error; session-handoff reports "could not submit" but does not fail |
 | Very long session (100+ skill invocations) | JSONL file grows linearly; batch submission handles all entries |
 | Concurrent sessions (worktrees) | Each session has unique session_id; telemetry files are per-session (`/tmp/claudefather-telemetry-<session_id>.jsonl`) |
 | User declines MCP permission | MCP tools not available; hook still writes local file but session-handoff cannot submit |

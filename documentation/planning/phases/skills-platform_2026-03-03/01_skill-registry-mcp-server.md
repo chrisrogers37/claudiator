@@ -1,9 +1,9 @@
 # Phase 01: Skill Registry, MCP Server & Auth Foundation
 
-**PR Title:** feat: add skill registry database, MCP server npm package, and auth web UI
+**PR Title:** feat: add skill registry database, Railway-hosted MCP server, and auth web UI
 **Risk Level:** High
 **Estimated Effort:** High (~3-4 weeks)
-**Files Created:** ~35 (new `packages/` monorepo with `mcp-server/`, `web/`, and `db/` directories)
+**Files Created:** ~35 (new `packages/` monorepo with `mcp-server/` (Railway), `web/` (Vercel), and `db/` directories)
 **Files Modified:** 1 (`CHANGELOG.md`)
 **Files Deleted:** 0
 
@@ -15,10 +15,10 @@ Claudefather currently distributes 38 skills to ~20 users via git-clone file-cop
 
 This phase builds the foundational infrastructure that all subsequent phases depend on:
 1. A PostgreSQL database (Neon) that serves as the single source of truth for skills, versions, users, and API tokens.
-2. An MCP server (npm package) that runs locally on each user's machine and connects to the hosted API to sync skills to `~/.claude/skills/`.
+2. A remote MCP server (hosted on Railway, SSE transport) that provides tools for syncing skills, checking updates, and authenticating. MCP tools return skill content; Claude Code writes the files to `~/.claude/skills/`.
 3. A web UI (Next.js on Vercel) for GitHub OAuth login and API token management.
 
-Once this phase is complete, the existing file-copy sync mechanism has a parallel, registry-backed replacement. Users generate tokens in the web UI, configure the MCP server in their `settings.json`, and use MCP tools to sync skills from the central registry instead of from a git clone.
+Once this phase is complete, the existing file-copy sync mechanism has a parallel, registry-backed replacement. Users generate tokens in the web UI, configure the MCP server URL in their `settings.json`, and use MCP tools to sync skills from the central registry instead of from a git clone. No npm package installation required — users just add a URL and token.
 
 **Why this matters:** Every other planned phase (telemetry, feedback, Workshop UI, intelligence pipeline) requires a database, an authenticated API, and a distribution mechanism. This phase provides all three.
 
@@ -51,18 +51,18 @@ packages/
       0000_initial.sql         # Generated migration
     package.json
     tsconfig.json
-  mcp-server/                  # npm package: claudefather-mcp
+  mcp-server/                  # Railway-hosted MCP server (SSE transport)
     src/
-      index.ts                 # Entry point, stdio transport setup
+      index.ts                 # Entry point, SSE transport setup
       server.ts                # MCP server with tool registrations
       tools/
-        sync.ts                # claudefather_sync tool
+        sync.ts                # claudefather_sync tool (returns content for Claude to write)
         check-updates.ts       # claudefather_check_updates tool
         whoami.ts              # claudefather_whoami tool
       lib/
-        api-client.ts          # HTTP client for web API
-        skill-writer.ts        # Writes SKILL.md files to ~/.claude/skills/
+        db.ts                  # Direct database access (shared with web)
         diff.ts                # Diff computation for sync preview
+    Dockerfile                 # Railway deployment
     package.json
     tsconfig.json
     README.md
@@ -106,7 +106,7 @@ packages/
 
 ### Step 1: Initialize Monorepo
 
-**File: `/Users/chris/Projects/claudefather/packages/db/package.json`**
+**File: `/Users/chris/Projects/the-claudefather/packages/db/package.json`**
 
 ```json
 {
@@ -132,31 +132,33 @@ packages/
 }
 ```
 
-**File: `/Users/chris/Projects/claudefather/packages/mcp-server/package.json`**
+**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/package.json`**
 
 ```json
 {
-  "name": "claudefather-mcp",
+  "name": "@claudefather/mcp-server",
   "version": "1.0.0",
-  "description": "MCP server for claudefather skill registry — syncs skills, checks updates, manages auth.",
+  "private": true,
+  "description": "MCP server for claudefather skill registry — hosted on Railway, SSE transport.",
   "type": "module",
-  "bin": {
-    "claudefather-mcp": "./dist/index.js"
-  },
-  "files": ["dist/"],
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "prepublishOnly": "npm run build"
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "zod": "^3.25.0"
+    "@claudefather/db": "workspace:*",
+    "@neondatabase/serverless": "^1.0.0",
+    "drizzle-orm": "^0.38.0",
+    "zod": "^3.25.0",
+    "express": "^4.21.0"
   },
   "devDependencies": {
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "@types/express": "^4.17.0"
   },
   "engines": {
     "node": ">=20"
@@ -164,7 +166,32 @@ packages/
 }
 ```
 
-**File: `/Users/chris/Projects/claudefather/packages/web/package.json`**
+**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/Dockerfile`**
+
+```dockerfile
+FROM node:20-slim AS builder
+WORKDIR /app
+COPY package*.json ./
+COPY tsconfig.json ./
+COPY src/ ./src/
+RUN npm install && npm run build
+
+FROM node:20-slim
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY package*.json ./
+EXPOSE 3001
+CMD ["node", "dist/index.js"]
+```
+
+**Why Railway instead of npm package:**
+- No local installation required — users configure a URL, not `npx`
+- Railway handles uptime, scaling, logging, and deployment
+- The MCP server connects directly to Neon (same database as the web app), eliminating the need for an intermediate API layer
+- Simpler onboarding: just a URL + token in `settings.json`
+
+**File: `/Users/chris/Projects/the-claudefather/packages/web/package.json`**
 
 ```json
 {
@@ -206,7 +233,7 @@ packages/
 
 ### Step 2: Database Schema
 
-**File: `/Users/chris/Projects/claudefather/packages/db/src/schema.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/db/src/schema.ts`**
 
 ```typescript
 import {
@@ -351,7 +378,7 @@ export const userSkillPins = pgTable(
 
 ### Step 3: Database Client
 
-**File: `/Users/chris/Projects/claudefather/packages/db/src/client.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/db/src/client.ts`**
 
 ```typescript
 import { neon } from "@neondatabase/serverless";
@@ -370,7 +397,7 @@ export type Db = ReturnType<typeof createDb>;
 
 ### Step 4: Drizzle Configuration
 
-**File: `/Users/chris/Projects/claudefather/packages/db/drizzle.config.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/db/drizzle.config.ts`**
 
 ```typescript
 import { defineConfig } from "drizzle-kit";
@@ -387,7 +414,7 @@ export default defineConfig({
 
 ### Step 5: Migration Runner
 
-**File: `/Users/chris/Projects/claudefather/packages/db/src/migrate.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/db/src/migrate.ts`**
 
 ```typescript
 import { neon } from "@neondatabase/serverless";
@@ -419,7 +446,7 @@ main().catch((err) => {
 
 This script reads all 38 skills from the `global/skills/` directory in the claudefather repo and inserts them as v1.0.0 entries in the database.
 
-**File: `/Users/chris/Projects/claudefather/packages/db/src/seed.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/db/src/seed.ts`**
 
 ```typescript
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
@@ -613,55 +640,84 @@ main().catch((err) => {
 
 ### Step 7: MCP Server Entry Point
 
-**File: `/Users/chris/Projects/claudefather/packages/mcp-server/src/index.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/index.ts`**
 
 ```typescript
-#!/usr/bin/env node
-
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import express from "express";
 import { createServer } from "./server.js";
 
-async function main() {
-  const apiKey = process.env.CLAUDEFATHER_API_KEY;
-  const apiBaseUrl =
-    process.env.CLAUDEFATHER_API_URL || "https://claudefather.vercel.app";
+const PORT = parseInt(process.env.PORT || "3001", 10);
+const DATABASE_URL = process.env.DATABASE_URL;
 
-  if (!apiKey) {
-    console.error(
-      "CLAUDEFATHER_API_KEY environment variable is required.\n" +
-        "Generate one at https://claudefather.vercel.app/dashboard/generate"
-    );
-    process.exit(1);
-  }
-
-  const server = createServer({ apiKey, apiBaseUrl });
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+if (!DATABASE_URL) {
+  console.error("DATABASE_URL environment variable is required.");
+  process.exit(1);
 }
 
-main().catch((err) => {
-  console.error("MCP server failed to start:", err);
-  process.exit(1);
+const app = express();
+
+// Health check for Railway
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
+// SSE endpoint for MCP connections
+app.get("/sse", async (req, res) => {
+  // Extract API key from query parameter or Authorization header
+  const apiKey =
+    req.query.api_key as string ||
+    req.headers.authorization?.replace("Bearer ", "");
+
+  if (!apiKey) {
+    res.status(401).json({ error: "API key required" });
+    return;
+  }
+
+  // Validate the API key against the database
+  // (token validation logic from web app's auth module)
+  const user = await validateApiKey(apiKey);
+  if (!user) {
+    res.status(401).json({ error: "Invalid or expired API key" });
+    return;
+  }
+
+  const server = createServer({ user, databaseUrl: DATABASE_URL! });
+  const transport = new SSEServerTransport("/messages", res);
+  await server.connect(transport);
+});
+
+// Message endpoint for SSE transport
+app.post("/messages", express.json(), async (req, res) => {
+  // The SSE transport handles message routing internally
+  // This endpoint receives messages from the client
+  res.status(200).end();
+});
+
+app.listen(PORT, () => {
+  console.log(`Claudefather MCP server listening on port ${PORT}`);
 });
 ```
 
-The `#!/usr/bin/env node` shebang is required because the `bin` field in `package.json` points here. When a user runs `npx claudefather-mcp`, npm executes this file directly.
+**Key difference from local npm package:** The server runs on Railway as a long-lived HTTP process. It uses SSE (Server-Sent Events) transport instead of stdio. The API key is passed via the MCP client configuration (as a header or query param), and the server validates it directly against the Neon database — no intermediate web API layer needed.
+
+**Railway deployment:** The `Dockerfile` builds the TypeScript and runs `node dist/index.js`. Railway auto-detects the Dockerfile and deploys. The `PORT` environment variable is set by Railway automatically.
 
 ### Step 8: MCP Server Tool Registration
 
-**File: `/Users/chris/Projects/claudefather/packages/mcp-server/src/server.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/server.ts`**
 
 ```typescript
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { ApiClient } from "./lib/api-client.js";
+import { createDbClient } from "./lib/db.js";
 import { syncSkills } from "./tools/sync.js";
 import { checkUpdates } from "./tools/check-updates.js";
 import { whoami } from "./tools/whoami.js";
 
 interface ServerConfig {
-  apiKey: string;
-  apiBaseUrl: string;
+  user: { id: string; githubUsername: string; role: string };
+  databaseUrl: string;
 }
 
 export function createServer(config: ServerConfig): McpServer {
@@ -670,7 +726,7 @@ export function createServer(config: ServerConfig): McpServer {
     version: "1.0.0",
   });
 
-  const client = new ApiClient(config.apiBaseUrl, config.apiKey);
+  const db = createDbClient(config.databaseUrl);
 
   // ─── claudefather_sync ─────────────────────────────────────────────────────
   server.registerTool(
@@ -678,15 +734,15 @@ export function createServer(config: ServerConfig): McpServer {
     {
       title: "Sync Skills from Registry",
       description:
-        "Fetches latest skills from the claudefather registry, shows diffs for " +
-        "any changes, and writes approved updates to ~/.claude/skills/. " +
+        "Fetches latest skills from the claudefather registry. Returns skill content " +
+        "that Claude Code should write to ~/.claude/skills/. " +
         "Skills are loaded by Claude Code at session start from the local filesystem.",
       inputSchema: z.object({
         dryRun: z
           .boolean()
           .optional()
           .describe(
-            "If true, shows what would change without writing files. Default: false."
+            "If true, shows what would change without returning file content. Default: false."
           ),
         skills: z
           .array(z.string())
@@ -696,7 +752,7 @@ export function createServer(config: ServerConfig): McpServer {
           ),
       }),
     },
-    async (args) => syncSkills(client, args)
+    async (args) => syncSkills(db, config.user, args)
   );
 
   // ─── claudefather_check_updates ────────────────────────────────────────────
@@ -709,7 +765,7 @@ export function createServer(config: ServerConfig): McpServer {
         "Returns a list of skills with new versions available.",
       inputSchema: z.object({}),
     },
-    async () => checkUpdates(client)
+    async () => checkUpdates(db, config.user)
   );
 
   // ─── claudefather_whoami ───────────────────────────────────────────────────
@@ -721,240 +777,120 @@ export function createServer(config: ServerConfig): McpServer {
         "Returns the authenticated user's GitHub identity, role, and token status.",
       inputSchema: z.object({}),
     },
-    async () => whoami(client)
+    async () => whoami(config.user)
   );
 
   return server;
 }
 ```
 
-### Step 9: API Client
+### Step 9: Database Client (Direct Access)
 
-The MCP server runs locally on the user's machine. It communicates with the hosted web API over HTTPS.
+The MCP server runs on Railway and connects directly to Neon PostgreSQL — no intermediate web API layer needed. It shares the same `@claudefather/db` schema package as the web app.
 
-**File: `/Users/chris/Projects/claudefather/packages/mcp-server/src/lib/api-client.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/lib/db.ts`**
 
 ```typescript
-export interface SkillInfo {
-  slug: string;
-  name: string;
-  description: string;
-  category: string;
-  version: string;
-  content: string;
-  references: Record<string, string> | null;
-  publishedAt: string;
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
+import * as schema from "@claudefather/db/schema";
+
+export function createDbClient(databaseUrl: string) {
+  const sql = neon(databaseUrl);
+  return drizzle(sql, { schema });
 }
 
-export interface UserInfo {
-  githubUsername: string;
-  displayName: string | null;
-  role: string;
-  tokenName: string;
-  tokenExpiresAt: string | null;
-}
+export type DbClient = ReturnType<typeof createDbClient>;
+```
 
-export interface UpdateInfo {
-  slug: string;
-  currentVersion: string;
-  latestVersion: string;
-  changelog: string | null;
-}
+**Why direct DB access instead of an API client:** Since the MCP server is now a hosted service on Railway (not a local npm package), it can connect directly to Neon PostgreSQL. This eliminates an entire HTTP hop, reduces latency, and removes the need for the web app to expose MCP-specific API endpoints. The web app still handles browser-facing APIs (OAuth, dashboard, token management); the MCP server handles MCP tool requests.
 
-export class ApiClient {
-  constructor(
-    private baseUrl: string,
-    private apiKey: string
-  ) {}
+### Step 10: Skill Content Delivery (No Local Disk Writes)
 
-  private async request<T>(path: string, options?: RequestInit): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
-    });
+**Critical architecture change:** Since the MCP server is hosted on Railway (not running locally), it **cannot write files to the user's disk**. Instead, MCP tools return skill content in the tool response, and Claude Code (the MCP client) is responsible for writing files to `~/.claude/skills/` using its Write tool.
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      if (response.status === 401) {
-        throw new Error(
-          "Authentication failed. Your API key may be expired or revoked.\n" +
-            "Generate a new key at https://claudefather.vercel.app/dashboard/generate"
-        );
-      }
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText}\n${body}`
-      );
-    }
+This means:
+- `claudefather_sync` returns a JSON payload with skill content, file paths, and versions
+- The `/claudefather-sync` skill (Phase 03) instructs Claude Code to write each file using the Write tool
+- The MCP server never touches the local filesystem
 
-    return response.json() as Promise<T>;
-  }
+**No `skill-writer.ts` module is needed.** The sync tool returns structured content:
 
-  async getSkills(): Promise<SkillInfo[]> {
-    return this.request<SkillInfo[]>("/api/skills");
-  }
-
-  async getSkill(slug: string): Promise<SkillInfo> {
-    return this.request<SkillInfo>(`/api/skills/${encodeURIComponent(slug)}`);
-  }
-
-  async checkUpdates(
-    installed: { slug: string; version: string }[]
-  ): Promise<UpdateInfo[]> {
-    return this.request<UpdateInfo[]>("/api/skills/check-updates", {
-      method: "POST",
-      body: JSON.stringify({ installed }),
-    });
-  }
-
-  async whoami(): Promise<UserInfo> {
-    return this.request<UserInfo>("/api/whoami");
-  }
+```typescript
+// Example tool response from claudefather_sync
+{
+  content: [{
+    type: "text",
+    text: JSON.stringify({
+      skills: [
+        {
+          slug: "review-pr",
+          version: "1.3.0",
+          action: "update",
+          files: {
+            "SKILL.md": "<full SKILL.md content>",
+            "references/review-checklist.md": "<reference file content>"
+          }
+        }
+      ],
+      summary: "1 update available"
+    })
+  }]
 }
 ```
 
-### Step 10: Skill Writer
-
-This module handles the critical disk-write operation: writing SKILL.md files (and reference files) to `~/.claude/skills/`.
-
-**File: `/Users/chris/Projects/claudefather/packages/mcp-server/src/lib/skill-writer.ts`**
-
-```typescript
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
-import type { SkillInfo } from "./api-client.js";
-
-export interface WriteResult {
-  slug: string;
-  action: "created" | "updated" | "unchanged";
-  diff?: string;
-}
-
-function getSkillsDir(): string {
-  return join(homedir(), ".claude", "skills");
-}
-
-export function readLocalSkill(slug: string): { content: string; references: Record<string, string> } | null {
-  const skillDir = join(getSkillsDir(), slug);
-  const skillPath = join(skillDir, "SKILL.md");
-
-  if (!existsSync(skillPath)) return null;
-
-  const content = readFileSync(skillPath, "utf-8");
-  const references: Record<string, string> = {};
-
-  const refsDir = join(skillDir, "references");
-  if (existsSync(refsDir)) {
-    const { readdirSync, statSync } = require("node:fs");
-    for (const file of readdirSync(refsDir)) {
-      const filePath = join(refsDir, file);
-      if (statSync(filePath).isFile()) {
-        references[`references/${file}`] = readFileSync(filePath, "utf-8");
-      }
-    }
-  }
-
-  return { content, references };
-}
-
-export function computeDiff(local: string, remote: string): string | null {
-  if (local === remote) return null;
-
-  const localLines = local.split("\n");
-  const remoteLines = remote.split("\n");
-  const changes: string[] = [];
-
-  // Simple line-level diff for display purposes
-  const maxLen = Math.max(localLines.length, remoteLines.length);
-  let diffCount = 0;
-  for (let i = 0; i < maxLen; i++) {
-    const localLine = localLines[i] ?? "";
-    const remoteLine = remoteLines[i] ?? "";
-    if (localLine !== remoteLine) {
-      diffCount++;
-      if (diffCount <= 20) {
-        // Show first 20 changed lines
-        if (localLines[i] !== undefined) changes.push(`- ${localLine}`);
-        if (remoteLines[i] !== undefined) changes.push(`+ ${remoteLine}`);
-      }
-    }
-  }
-
-  if (diffCount > 20) {
-    changes.push(`... and ${diffCount - 20} more changed lines`);
-  }
-
-  return changes.join("\n");
-}
-
-export function writeSkill(skill: SkillInfo): WriteResult {
-  const skillDir = join(getSkillsDir(), skill.slug);
-  const skillPath = join(skillDir, "SKILL.md");
-
-  const local = readLocalSkill(skill.slug);
-
-  if (local && local.content === skill.content) {
-    // Check references too
-    const refsMatch =
-      JSON.stringify(local.references) === JSON.stringify(skill.references || {});
-    if (refsMatch) {
-      return { slug: skill.slug, action: "unchanged" };
-    }
-  }
-
-  const diff = local ? computeDiff(local.content, skill.content) : null;
-
-  // Create directory if needed
-  if (!existsSync(skillDir)) {
-    mkdirSync(skillDir, { recursive: true });
-  }
-
-  // Write SKILL.md
-  writeFileSync(skillPath, skill.content, "utf-8");
-
-  // Write reference files
-  if (skill.references) {
-    for (const [relPath, fileContent] of Object.entries(skill.references)) {
-      const absPath = join(skillDir, relPath);
-      const parentDir = join(absPath, "..");
-      if (!existsSync(parentDir)) {
-        mkdirSync(parentDir, { recursive: true });
-      }
-      writeFileSync(absPath, fileContent, "utf-8");
-    }
-  }
-
-  return {
-    slug: skill.slug,
-    action: local ? "updated" : "created",
-    diff: diff || undefined,
-  };
-}
-```
+Claude Code receives this response and the `/claudefather-sync` skill instructs it to:
+1. Write each file to `~/.claude/skills/<slug>/<path>` using the Write tool
+2. Write the version to `~/.claude/skills/<slug>/.version`
+3. Set executable permissions on `.sh` files via `chmod +x`
 
 ### Step 11: Sync Tool Implementation
 
-**File: `/Users/chris/Projects/claudefather/packages/mcp-server/src/tools/sync.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/tools/sync.ts`**
+
+The sync tool queries the database for latest skill versions and returns the content. It does NOT write to disk — Claude Code handles that.
 
 ```typescript
-import type { ApiClient, SkillInfo } from "../lib/api-client.js";
-import { readLocalSkill, writeSkill, computeDiff } from "../lib/skill-writer.js";
+import type { DbClient } from "../lib/db.js";
+import { skills, skillVersions } from "@claudefather/db/schema";
+import { eq, and } from "drizzle-orm";
 
 interface SyncArgs {
   dryRun?: boolean;
   skills?: string[];
 }
 
+interface SyncedSkill {
+  slug: string;
+  version: string;
+  action: "install" | "update";
+  files: Record<string, string>;
+}
+
 export async function syncSkills(
-  client: ApiClient,
+  db: DbClient,
+  user: { id: string },
   args: SyncArgs
 ): Promise<{ content: { type: "text"; text: string }[] }> {
-  const allSkills = await client.getSkills();
+  // Fetch all skills with their latest versions
+  const allSkills = await db
+    .select({
+      slug: skills.slug,
+      name: skills.name,
+      description: skills.description,
+      version: skillVersions.version,
+      content: skillVersions.content,
+      references: skillVersions.references,
+      changelog: skillVersions.changelog,
+    })
+    .from(skills)
+    .innerJoin(
+      skillVersions,
+      and(
+        eq(skillVersions.skillId, skills.id),
+        eq(skillVersions.isLatest, true)
+      )
+    );
 
   // Filter to requested skills if specified
   const targetSkills = args.skills
@@ -974,49 +910,40 @@ export async function syncSkills(
     };
   }
 
-  const results: string[] = [];
-  let created = 0;
-  let updated = 0;
-  let unchanged = 0;
-
-  for (const skill of targetSkills) {
-    const local = readLocalSkill(skill.slug);
-
-    if (!local) {
-      // New skill
-      if (args.dryRun) {
-        results.push(`+ ${skill.slug} (v${skill.version}) — NEW`);
-      } else {
-        writeSkill(skill);
-        results.push(`+ ${skill.slug} (v${skill.version}) — created`);
-      }
-      created++;
-    } else if (local.content !== skill.content) {
-      // Changed skill
-      const diff = computeDiff(local.content, skill.content);
-      if (args.dryRun) {
-        results.push(`~ ${skill.slug} (v${skill.version}) — CHANGED`);
-        if (diff) results.push(diff);
-      } else {
-        writeSkill(skill);
-        results.push(`~ ${skill.slug} (v${skill.version}) — updated`);
-        if (diff) results.push(diff);
-      }
-      updated++;
-    } else {
-      unchanged++;
-    }
+  if (args.dryRun) {
+    // Return summary only, no content
+    const summary = targetSkills.map(
+      (s) => `  ${s.slug} v${s.version} — ${s.description}`
+    );
+    return {
+      content: [{
+        type: "text" as const,
+        text: `=== Available Skills (${targetSkills.length}) ===\n${summary.join("\n")}`,
+      }],
+    };
   }
 
-  const summary = [
-    args.dryRun ? "=== Dry Run ===" : "=== Sync Complete ===",
-    `Created: ${created} | Updated: ${updated} | Unchanged: ${unchanged}`,
-  ];
+  // Return full content for Claude Code to write to disk
+  const syncedSkills: SyncedSkill[] = targetSkills.map((s) => ({
+    slug: s.slug,
+    version: s.version,
+    action: "install" as const,
+    files: {
+      "SKILL.md": s.content,
+      ...(s.references as Record<string, string> || {}),
+    },
+  }));
 
-  if (results.length > 0) {
-    summary.push("", ...results);
-  } else {
-    summary.push("", "All skills are up to date.");
+  return {
+    content: [{
+      type: "text" as const,
+      text: JSON.stringify({
+        skills: syncedSkills,
+        summary: `${syncedSkills.length} skill(s) ready to write to ~/.claude/skills/`,
+        instructions: "Write each skill's files to ~/.claude/skills/<slug>/<path> and write the version to ~/.claude/skills/<slug>/.version",
+      }),
+    }],
+  };
   }
 
   if (!args.dryRun && (created > 0 || updated > 0)) {
@@ -1034,7 +961,7 @@ export async function syncSkills(
 
 ### Step 12: Check Updates Tool
 
-**File: `/Users/chris/Projects/claudefather/packages/mcp-server/src/tools/check-updates.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/tools/check-updates.ts`**
 
 ```typescript
 import { readdirSync, readFileSync, existsSync } from "node:fs";
@@ -1115,7 +1042,7 @@ export async function checkUpdates(
 
 ### Step 13: Whoami Tool
 
-**File: `/Users/chris/Projects/claudefather/packages/mcp-server/src/tools/whoami.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/tools/whoami.ts`**
 
 ```typescript
 import type { ApiClient } from "../lib/api-client.js";
@@ -1141,7 +1068,7 @@ export async function whoami(
 
 ### Step 14: Web App — NextAuth Configuration
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/lib/auth.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/lib/auth.ts`**
 
 ```typescript
 import NextAuth from "next-auth";
@@ -1219,7 +1146,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
 ### Step 15: Token Management Library
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/lib/tokens.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/lib/tokens.ts`**
 
 ```typescript
 import { randomBytes } from "node:crypto";
@@ -1380,7 +1307,7 @@ export async function rotateToken(
 
 ### Step 16: API Routes — Token Management
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/app/api/tokens/route.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/tokens/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -1454,7 +1381,7 @@ export async function POST(request: Request) {
 }
 ```
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/app/api/tokens/[id]/route.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/tokens/[id]/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -1483,7 +1410,7 @@ export async function DELETE(
 }
 ```
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/app/api/tokens/[id]/rotate/route.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/tokens/[id]/rotate/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -1514,7 +1441,7 @@ export async function POST(
 
 ### Step 17: API Routes — Skills (for MCP server)
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/app/api/skills/route.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/skills/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -1566,7 +1493,7 @@ export async function GET(request: Request) {
 }
 ```
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/app/api/skills/[slug]/route.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/skills/[slug]/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -1627,7 +1554,7 @@ export async function GET(
 
 ### Step 18: API Route — Whoami (for MCP server)
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/app/api/whoami/route.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/whoami/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -1679,7 +1606,7 @@ export async function GET(request: Request) {
 
 ### Step 19: API Route — Check Updates (for MCP server)
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/app/api/skills/check-updates/route.ts`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/skills/check-updates/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -1744,7 +1671,7 @@ export async function POST(request: Request) {
 
 The dashboard follows the dark terminal aesthetic specified in the requirements. Key design elements: dark background (`#0d1117`), green accents for active states (`#3fb950`), amber for warnings (`#d29922`), monospace headers (`JetBrains Mono` or `ui-monospace` fallback).
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/app/dashboard/page.tsx`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/dashboard/page.tsx`**
 
 ```tsx
 import { auth } from "@/lib/auth";
@@ -1805,7 +1732,7 @@ export default async function DashboardPage() {
 }
 ```
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/app/dashboard/generate/page.tsx`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/dashboard/generate/page.tsx`**
 
 ```tsx
 import { auth } from "@/lib/auth";
@@ -1835,12 +1762,14 @@ export default async function GenerateTokenPage() {
 }
 ```
 
-**File: `/Users/chris/Projects/claudefather/packages/web/src/components/copy-snippet.tsx`**
+**File: `/Users/chris/Projects/the-claudefather/packages/web/src/components/copy-snippet.tsx`**
 
 ```tsx
 "use client";
 
 import { useState } from "react";
+
+const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "https://mcp.the-claudefather.railway.app";
 
 export function CopySnippet() {
   const [copied, setCopied] = useState(false);
@@ -1849,10 +1778,9 @@ export function CopySnippet() {
     {
       mcpServers: {
         claudefather: {
-          command: "npx",
-          args: ["-y", "claudefather-mcp@latest"],
-          env: {
-            CLAUDEFATHER_API_KEY: "<your-token>",
+          url: `${MCP_SERVER_URL}/sse`,
+          headers: {
+            Authorization: "Bearer <your-token>",
           },
         },
       },
@@ -1894,12 +1822,17 @@ GITHUB_CLIENT_ID=Ov23li...           # From GitHub OAuth App settings
 GITHUB_CLIENT_SECRET=abcdef...       # From GitHub OAuth App settings
 NEXTAUTH_URL=https://claudefather.vercel.app
 NEXTAUTH_SECRET=$(openssl rand -base64 32)
+MCP_SERVER_URL=https://mcp.the-claudefather.railway.app  # For copy-snippet component
 ```
 
-**User's local machine (MCP server):**
+**Railway (MCP server):**
 ```
-CLAUDEFATHER_API_KEY=cf_abc123...    # Generated via the web dashboard
+DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+PORT=3001                            # Set automatically by Railway
 ```
+
+**User's local machine (no server install needed):**
+Users only need to add the MCP config snippet to `~/.claude/settings.json` with their API token. No environment variables, no npm packages.
 
 ### Step 22: GitHub OAuth App Setup
 
@@ -1913,7 +1846,7 @@ Copy the Client ID and Client Secret to Vercel environment variables.
 
 ### Step 23: TypeScript Configurations
 
-**File: `/Users/chris/Projects/claudefather/packages/db/tsconfig.json`**
+**File: `/Users/chris/Projects/the-claudefather/packages/db/tsconfig.json`**
 
 ```json
 {
@@ -1932,7 +1865,7 @@ Copy the Client ID and Client Secret to Vercel environment variables.
 }
 ```
 
-**File: `/Users/chris/Projects/claudefather/packages/mcp-server/tsconfig.json`**
+**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/tsconfig.json`**
 
 ```json
 {
@@ -1950,6 +1883,19 @@ Copy the Client ID and Client Secret to Vercel environment variables.
   "include": ["src/**/*.ts"]
 }
 ```
+
+### Step 24: Railway Deployment Configuration
+
+Deploy the MCP server to Railway:
+
+1. **Create Railway project** — Link to the `the-claudefather` GitHub repo
+2. **Configure service** — Point to `packages/mcp-server/` as the root directory, Railway auto-detects the Dockerfile
+3. **Set environment variables** — `DATABASE_URL` (same Neon connection string as Vercel)
+4. **Custom domain** (optional) — `mcp.the-claudefather.railway.app` or custom domain
+5. **Health check** — Configure Railway health check to `GET /health`
+6. **Autoscaling** — Start with a single instance; Railway scales as needed
+
+The MCP server shares the same Neon database as the Vercel web app. Both services connect via Neon's HTTP driver, so there is no connection pooling conflict.
 
 ---
 
@@ -1964,15 +1910,15 @@ Copy the Client ID and Client Secret to Vercel environment variables.
 3. **Seed content integrity test** — Verify that for each seeded skill, the `content` column matches the file content of `global/skills/<slug>/SKILL.md` byte-for-byte.
 4. **References test** — Verify context-resume and session-handoff have non-null `references` JSONB with the correct keys (`references/templates.md`).
 
-**Package: `claudefather-mcp`**
+**Package: `@claudefather/mcp-server`**
 
-5. **API client error handling** — Mock 401 response, verify error message includes the token generation URL.
-6. **API client error handling** — Mock 500 response, verify error includes status code and body.
-7. **Skill writer — new skill** — Write a skill to a temp directory, verify SKILL.md created with correct content.
-8. **Skill writer — update skill** — Write a skill with different content, verify diff is computed and file is updated.
-9. **Skill writer — unchanged skill** — Write same content, verify action is "unchanged" and file is not rewritten.
-10. **Skill writer — references** — Write a skill with references, verify `references/` subdirectory created with correct files.
-11. **Diff computation** — Verify computeDiff returns null for identical strings, returns line-level diff for different strings, truncates at 20 lines.
+5. **API key validation** — Test valid key returns user, expired key returns null, revoked key returns null.
+6. **SSE transport** — Verify server starts and accepts SSE connections on `/sse` endpoint.
+7. **Sync tool — returns content** — Call `claudefather_sync`, verify response contains JSON with skill content, versions, and file paths.
+8. **Sync tool — dry run** — Call with `dryRun: true`, verify response contains skill list without file content.
+9. **Sync tool — filtered skills** — Call with `skills: ["review-pr"]`, verify only that skill is returned.
+10. **Health endpoint** — Verify `GET /health` returns 200 with `{"status": "ok"}`.
+11. **Unauthenticated request** — Verify `/sse` without API key returns 401.
 
 **Package: `@claudefather/web`**
 
@@ -1991,7 +1937,7 @@ Copy the Client ID and Client Secret to Vercel environment variables.
 
 ### Integration Tests
 
-24. **End-to-end MCP sync** — Start MCP server with a test token, call `claudefather_sync`, verify skills are written to a temp `~/.claude/skills/` directory.
+24. **End-to-end MCP sync** — Connect to Railway-hosted MCP server with a test token, call `claudefather_sync`, verify response contains skill content that can be written to `~/.claude/skills/`.
 25. **End-to-end check updates** — Seed v1.0.0, publish v1.1.0 for one skill, call `claudefather_check_updates`, verify it reports the update.
 26. **GitHub OAuth flow** — Manually test login with a GitHub account, verify user is created in DB with correct githubId and username.
 
@@ -2000,8 +1946,8 @@ Copy the Client ID and Client Secret to Vercel environment variables.
 27. **Neon database setup** — Create a Neon project, set DATABASE_URL, run migrations, run seed. Verify all tables exist with correct schemas via Neon console.
 28. **Vercel deployment** — Deploy web app to Vercel, verify landing page loads, GitHub OAuth login works, dashboard shows after login.
 29. **Token generation in UI** — Generate a token in the dashboard, verify it appears in the token list with correct name and prefix.
-30. **MCP configuration** — Copy the settings.json snippet, add a real token, verify Claude Code discovers the MCP server and shows `claudefather_sync`, `claudefather_check_updates`, `claudefather_whoami` in tool list.
-31. **MCP sync from Claude Code** — Call `claudefather_sync` from a Claude Code session, verify skills are written to `~/.claude/skills/`.
+30. **MCP configuration** — Copy the settings.json snippet (URL + token), verify Claude Code discovers the remote MCP server and shows `claudefather_sync`, `claudefather_check_updates`, `claudefather_whoami` in tool list.
+31. **MCP sync from Claude Code** — Call `claudefather_sync` from a Claude Code session, verify the `/claudefather-sync` skill writes returned content to `~/.claude/skills/`.
 
 ---
 
@@ -2014,7 +1960,7 @@ Add under `## [Unreleased]` > `### Added`:
 ```markdown
 - **Skills platform foundation** — New `packages/` monorepo with three packages:
   - `@claudefather/db`: PostgreSQL schema (Neon serverless) with tables for users, API tokens, skills, skill versions, and user skill pins. Drizzle ORM for type-safe queries. Seed script imports all 38 skills as v1.0.0.
-  - `claudefather-mcp`: npm package providing MCP server with three tools — `claudefather_sync` (fetch and write skills from registry), `claudefather_check_updates` (check for newer versions), `claudefather_whoami` (show auth status). Runs locally, connects to hosted API.
+  - `@claudefather/mcp-server`: Railway-hosted MCP server (SSE transport) with three tools — `claudefather_sync` (fetch skills from registry, returns content for Claude Code to write), `claudefather_check_updates` (check for newer versions), `claudefather_whoami` (show auth status). Connects directly to Neon database.
   - `@claudefather/web`: Next.js web app on Vercel with GitHub OAuth login, API token management (generate, revoke, rotate), connection health metrics, and MCP configuration snippet.
 ```
 
@@ -2037,10 +1983,9 @@ Claudefather includes a centralized skills registry that replaces git-clone sync
 {
   "mcpServers": {
     "claudefather": {
-      "command": "npx",
-      "args": ["-y", "claudefather-mcp@latest"],
-      "env": {
-        "CLAUDEFATHER_API_KEY": "<your-token>"
+      "url": "https://mcp.the-claudefather.railway.app/sse",
+      "headers": {
+        "Authorization": "Bearer <your-token>"
       }
     }
   }
@@ -2048,6 +1993,8 @@ Claudefather includes a centralized skills registry that replaces git-clone sync
 \```
 
 4. Restart Claude Code. The `claudefather_sync` tool will be available.
+
+No local installation required — the MCP server is hosted on Railway.
 
 ### MCP Tools
 
@@ -2072,8 +2019,8 @@ Claudefather includes a centralized skills registry that replaces git-clone sync
 | Large SKILL.md (design-review is 20KB) | Well within PostgreSQL's text column limit (1GB). HTTP response for all 38 skills is ~236KB total -- well within Vercel's 4.5MB response limit. |
 | User generates 100+ tokens | Token list query is indexed by `userId`. Performance is fine for thousands of rows. UI should paginate if list grows large (Phase 04 concern, not Phase 01). |
 | Seed script run against non-empty database | `onConflictDoNothing` prevents duplicates. Existing skills with different content are NOT updated (use a separate publish workflow for that). |
-| MCP server started without CLAUDEFATHER_API_KEY | Process exits with error code 1 and helpful message. Claude Code will show the MCP server as failed to start. |
-| Network failure during sync | `fetch` throws, MCP tool returns error text. Partial writes are possible (skill A written, skill B fails). Each skill write is independent. |
+| MCP server started without DATABASE_URL | Process exits with error code 1 and helpful message. Railway deployment logs will show the error. |
+| Network failure during sync | MCP tool returns error text. Since the server returns content (not writes to disk), there are no partial filesystem writes — Claude Code handles writing atomically per skill. |
 | `~/.claude/skills/` directory does not exist | `mkdirSync` with `recursive: true` creates it. |
 | Invalid JSON in API response | `response.json()` throws. Error is caught and returned as error text in MCP tool response. |
 
@@ -2087,10 +2034,11 @@ Claudefather includes a centralized skills registry that replaces git-clone sync
 - [ ] `packages/db/` — `users` table has GitHub-specific columns (githubId, githubUsername)
 - [ ] `packages/db/` — `api_tokens` table stores bcrypt hash, never plaintext
 - [ ] `packages/db/` — `skill_versions` has unique index on (skillId, version)
-- [ ] `packages/mcp-server/` — `npx claudefather-mcp` starts with stdio transport
-- [ ] `packages/mcp-server/` — Exits with error if CLAUDEFATHER_API_KEY missing
-- [ ] `packages/mcp-server/` — `claudefather_sync` writes SKILL.md files to `~/.claude/skills/`
-- [ ] `packages/mcp-server/` — `claudefather_sync` with `dryRun: true` shows changes without writing
+- [ ] `packages/mcp-server/` — Deploys to Railway and starts with SSE transport on configured PORT
+- [ ] `packages/mcp-server/` — `/health` endpoint returns 200
+- [ ] `packages/mcp-server/` — Rejects connections without valid API key (401)
+- [ ] `packages/mcp-server/` — `claudefather_sync` returns skill content as JSON for Claude Code to write
+- [ ] `packages/mcp-server/` — `claudefather_sync` with `dryRun: true` shows available skills without returning content
 - [ ] `packages/mcp-server/` — `claudefather_check_updates` reports version differences
 - [ ] `packages/mcp-server/` — `claudefather_whoami` returns GitHub identity and token name
 - [ ] `packages/web/` — GitHub OAuth login creates user in DB
@@ -2124,9 +2072,9 @@ Claudefather includes a centralized skills registry that replaces git-clone sync
 
 6. **Do NOT use GitHub App instead of OAuth App.** GitHub Apps require installation and provide repository access we do not need. OAuth App provides identity only, which is all we need.
 
-7. **Do NOT use a WebSocket database driver.** The HTTP driver (`neon-http`) is correct for one-shot queries from Vercel serverless functions and the MCP server. WebSocket connections have setup overhead and connection pooling complexity that provide no benefit for this workload.
+7. **Do NOT use a WebSocket database driver.** The HTTP driver (`neon-http`) is correct for one-shot queries from Vercel serverless functions and the MCP server on Railway. WebSocket connections have setup overhead and connection pooling complexity that provide no benefit for this workload.
 
-8. **Do NOT add the MCP server config to `global/settings.json`.** The reference `settings.json` in `global/` is documentation, not installed. Users configure MCP via the web dashboard's copy-paste snippet. Each user's token is different.
+8. **Do NOT add the MCP server config to `global/settings.json`.** The reference `settings.json` in `global/` is documentation, not installed. Users configure MCP via the web dashboard's copy-paste snippet (URL + token). Each user's token is different.
 
 9. **Do NOT auto-sync skills without user action.** The MCP `claudefather_sync` tool must be explicitly called (by the user or by a skill). There is no background sync, no polling, no cron. This matches the principle of the existing sync flow where every change requires explicit confirmation.
 

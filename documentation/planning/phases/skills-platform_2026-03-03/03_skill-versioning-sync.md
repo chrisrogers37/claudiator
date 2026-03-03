@@ -29,7 +29,7 @@ This phase replaces the file-copy sync with an MCP-backed protocol that introduc
 
 ## Dependencies
 
-- **Depends on:** Phase 01 (Registry & MCP Server). This phase requires the `skills` table, `skill_versions` table, `user_skill_pins` table, `sync_events` table, and the running MCP server with authentication. Phase 03 cannot begin until Phase 01's database schema and MCP server are deployed.
+- **Depends on:** Phase 01 (Registry & MCP Server). This phase requires the `skills` table, `skill_versions` table, `user_skill_pins` table, `sync_events` table, and the Railway-hosted MCP server with authentication. Phase 03 cannot begin until Phase 01's database schema and MCP server are deployed.
 - **Can run in parallel with:** Phase 02 (Telemetry & Feedback). Phase 02 touches `invocations` and `feedback` tables; Phase 03 touches `skill_versions`, `user_skill_pins`, and `sync_events` tables. No table overlap, no file overlap.
 - **Unlocks:** Phase 04 (Workshop UI). The Workshop needs version history from `skill_versions` to display diffs, changelogs, and rollback options in the web UI.
 
@@ -80,7 +80,7 @@ The Markdown body of SKILL.md follows below in Step 3.
 {
   "id": "mcp-claudefather",
   "name": "Claudefather MCP Tools",
-  "description": "MCP tools for skill sync, versioning, rollback, and pinning. Requires claudefather MCP server configured in settings.json.",
+  "description": "MCP tools for skill sync, versioning, rollback, and pinning. Requires claudefather MCP server URL configured in settings.json.",
   "default": false,
   "permissions": [
     "mcp__claudefather__check_updates",
@@ -93,7 +93,7 @@ The Markdown body of SKILL.md follows below in Step 3.
 }
 ```
 
-This category is `default: false` because it requires the MCP server to be configured first (Phase 01). Users who set up their MCP server will be offered these permissions during their next sync or setup.
+This category is `default: false` because it requires the MCP server URL to be configured first (Phase 01). Users who set up their MCP connection will be offered these permissions during their next sync or setup.
 
 ### Step 2: Design the Version File Convention
 
@@ -714,7 +714,7 @@ These tests verify the skill's behavior end-to-end.
 
 7. **Unpin and sync:** Unpin the skill. Run sync. Verify it now shows as update available.
 
-8. **Fallback mode:** Remove MCP server config from settings.json. Run `/claudefather-sync`. Verify it falls back to git-based sync with the legacy breadcrumb protocol.
+8. **Fallback mode:** Remove MCP server URL from settings.json. Run `/claudefather-sync`. Verify it falls back to git-based sync with the legacy breadcrumb protocol.
 
 ---
 
@@ -770,9 +770,9 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 | No `.version` files exist (first MCP sync) | All skills report as `0.0.0`, all show as "update available" |
 | `.version` file contains invalid content (e.g., "abc") | Treat as `0.0.0`, log warning |
 | `.version` file exists but SKILL.md is missing | Skip this entry (orphaned version file) |
-| MCP server unreachable | Print connection error, suggest checking API token and server config, stop |
+| MCP server unreachable (Railway down) | Print connection error, suggest checking API token and server URL, stop |
 | MCP server returns empty registry | Print "Registry is empty — nothing to sync" and stop |
-| API token expired | MCP server returns 401. Print "API token expired — generate a new one" and stop |
+| API token expired | Railway-hosted MCP server returns 401. Print "API token expired — generate a new one" and stop |
 | User declines all updates | Print "No changes applied" and stop. No backup created (nothing changed). |
 | Mid-sync failure (e.g., Write tool fails) | Partial state. Backup exists. Print instructions to restore from backup. |
 | Skill with large references/ directory (10+ files) | All files included in sync. No truncation. |
@@ -784,8 +784,8 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 
 ### Performance Considerations
 
-- **`check_updates` call:** Single HTTP request to MCP server. Should complete in < 2 seconds even with 34+ skills.
-- **`sync_skills` call:** Returns full file content for all approved skills in one response. For a full sync of 34 skills, this could be 500KB-1MB of content. Acceptable for a single HTTP response.
+- **`check_updates` call:** Single request to Railway-hosted MCP server (direct DB query). Should complete in < 2 seconds even with 34+ skills.
+- **`sync_skills` call:** Returns full file content for all approved skills in one MCP tool response. For a full sync of 34 skills, this could be 500KB-1MB of content. Acceptable for a single SSE response.
 - **Local `.version` file reads:** 34 Read tool calls. Claude Code should execute these in parallel. Total time: < 1 second.
 - **Backup `cp -r`:** Copies entire `~/.claude/skills/` directory (34 skills). At ~500KB total, this completes in < 1 second.
 
@@ -832,7 +832,7 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 
 4. **Do NOT store `.version` files in the git repo.** Version files are local-only state reflecting what version each user has installed. They are generated during sync, not distributed.
 
-5. **Do NOT make the `mcp-claudefather` permission category `default: true`.** It requires the MCP server to be configured. Users without MCP setup would see permission errors for tools that do not exist.
+5. **Do NOT make the `mcp-claudefather` permission category `default: true`.** It requires the MCP server URL to be configured. Users without MCP setup would see permission errors for tools that do not exist.
 
 6. **Do NOT build a version history UI.** That is Phase 04 (Workshop). This phase only provides the MCP tools that the Workshop will later consume.
 
