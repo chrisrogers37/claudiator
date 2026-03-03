@@ -15,7 +15,7 @@ Claudefather currently distributes 38 skills to ~20 users via git-clone file-cop
 
 This phase builds the foundational infrastructure that all subsequent phases depend on:
 1. A PostgreSQL database (Neon) that serves as the single source of truth for skills, versions, users, and API tokens.
-2. A remote MCP server (hosted on Railway, SSE transport) that provides tools for syncing skills, checking updates, and authenticating. MCP tools return skill content; Claude Code writes the files to `~/.claude/skills/`.
+2. A remote MCP server (hosted on Railway, Streamable HTTP transport) that provides tools for syncing skills, checking updates, and authenticating. MCP tools return skill content; Claude Code writes the files to `~/.claude/skills/`.
 3. A web UI (Next.js on Vercel) for GitHub OAuth login and API token management.
 
 Once this phase is complete, the existing file-copy sync mechanism has a parallel, registry-backed replacement. Users generate tokens in the web UI, configure the MCP server URL in their `settings.json`, and use MCP tools to sync skills from the central registry instead of from a git clone. No npm package installation required — users just add a URL and token.
@@ -39,30 +39,33 @@ Once this phase is complete, the existing file-copy sync mechanism has a paralle
 Create the following directory structure at the repo root:
 
 ```
+Dockerfile                       # Railway deployment (repo root, multi-stage monorepo build)
+pnpm-workspace.yaml              # pnpm workspace config
+package.json                     # Root workspace package.json
 packages/
-  db/                          # Database schema and migrations
-    drizzle.config.ts          # Drizzle ORM configuration
+  db/                            # Database schema and migrations
+    drizzle.config.ts            # Drizzle ORM configuration
     src/
-      schema.ts                # All table definitions
-      migrate.ts               # Migration runner
-      seed.ts                  # Seed script to import 38 skills from global/
-      client.ts                # Database client factory
+      schema.ts                  # All table definitions
+      migrate.ts                 # Migration runner
+      seed.ts                    # Seed script to import 38 skills from global/
+      client.ts                  # Database client factory
+      auth.ts                    # Token validation (shared by mcp-server and web)
     drizzle/
-      0000_initial.sql         # Generated migration
+      0000_initial.sql           # Generated migration
     package.json
     tsconfig.json
-  mcp-server/                  # Railway-hosted MCP server (SSE transport)
+  mcp-server/                    # Railway-hosted MCP server (Streamable HTTP transport)
     src/
-      index.ts                 # Entry point, SSE transport setup
-      server.ts                # MCP server with tool registrations
+      index.ts                   # Entry point, Streamable HTTP transport setup
+      server.ts                  # MCP server with tool registrations
       tools/
-        sync.ts                # claudefather_sync tool (returns content for Claude to write)
-        check-updates.ts       # claudefather_check_updates tool
-        whoami.ts              # claudefather_whoami tool
+        sync.ts                  # claudefather_sync tool (returns content for Claude to write)
+        check-updates.ts         # claudefather_check_updates tool
+        whoami.ts                # claudefather_whoami tool
       lib/
-        db.ts                  # Direct database access (shared with web)
-        diff.ts                # Diff computation for sync preview
-    Dockerfile                 # Railway deployment
+        db.ts                    # Direct database access (shared with web)
+        diff.ts                  # Diff computation for sync preview
     package.json
     tsconfig.json
     README.md
@@ -122,9 +125,11 @@ packages/
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.0",
+    "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.38.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "drizzle-kit": "^0.30.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
@@ -139,7 +144,7 @@ packages/
   "name": "@claudefather/mcp-server",
   "version": "1.0.0",
   "private": true,
-  "description": "MCP server for claudefather skill registry — hosted on Railway, SSE transport.",
+  "description": "MCP server for claudefather skill registry — hosted on Railway, Streamable HTTP transport.",
   "type": "module",
   "scripts": {
     "build": "tsc",
@@ -147,7 +152,7 @@ packages/
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@modelcontextprotocol/sdk": "^1.27.0",
     "@claudefather/db": "workspace:*",
     "@neondatabase/serverless": "^1.0.0",
     "drizzle-orm": "^0.38.0",
@@ -166,23 +171,47 @@ packages/
 }
 ```
 
-**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/Dockerfile`**
+**File: `/Users/chris/Projects/the-claudefather/Dockerfile`** (repo root — builds mcp-server with workspace deps)
 
 ```dockerfile
 FROM node:20-slim AS builder
 WORKDIR /app
-COPY package*.json ./
-COPY tsconfig.json ./
-COPY src/ ./src/
-RUN npm install && npm run build
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy workspace config and all package.json files
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/db/package.json ./packages/db/
+COPY packages/mcp-server/package.json ./packages/mcp-server/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source for db and mcp-server
+COPY packages/db/ ./packages/db/
+COPY packages/mcp-server/ ./packages/mcp-server/
+
+# Build db first (dependency), then mcp-server
+RUN pnpm --filter @claudefather/db run build
+RUN pnpm --filter @claudefather/mcp-server run build
 
 FROM node:20-slim
 WORKDIR /app
-COPY --from=builder /app/dist ./dist
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy built artifacts and production deps
+COPY --from=builder /app/packages/db/dist ./packages/db/dist
+COPY --from=builder /app/packages/db/package.json ./packages/db/
+COPY --from=builder /app/packages/mcp-server/dist ./packages/mcp-server/dist
+COPY --from=builder /app/packages/mcp-server/package.json ./packages/mcp-server/
 COPY --from=builder /app/node_modules ./node_modules
-COPY package*.json ./
+COPY --from=builder /app/packages/db/node_modules ./packages/db/node_modules 2>/dev/null || true
+COPY --from=builder /app/packages/mcp-server/node_modules ./packages/mcp-server/node_modules 2>/dev/null || true
+COPY pnpm-workspace.yaml package.json ./
+
 EXPOSE 3001
-CMD ["node", "dist/index.js"]
+CMD ["node", "packages/mcp-server/dist/index.js"]
 ```
 
 **Why Railway instead of npm package:**
@@ -394,6 +423,77 @@ export type Db = ReturnType<typeof createDb>;
 ```
 
 **Why `neon-http` driver (not WebSocket):** The MCP server and Vercel API routes make one-shot queries (fetch skills, validate token, increment counter). HTTP is faster for single queries because it avoids WebSocket connection setup. The WebSocket driver is only needed for interactive transactions or session-scoped connections, neither of which apply here.
+
+### Step 3B: Shared Token Validation
+
+Token validation is needed by both the MCP server (to authenticate API key per request) and the web app (to validate tokens for skill API routes). This module lives in `@claudefather/db` since it operates on the `api_tokens` table defined in the schema.
+
+**File: `/Users/chris/Projects/the-claudefather/packages/db/src/auth.ts`**
+
+```typescript
+import bcrypt from "bcryptjs";
+import { apiTokens } from "./schema.js";
+import { eq, and, isNull } from "drizzle-orm";
+import type { Db } from "./client.js";
+
+const TOKEN_PREFIX = "cf_";
+
+export interface ValidateTokenResult {
+  userId: string;
+  tokenId: string;
+  tokenName: string;
+}
+
+export async function validateToken(
+  db: Db,
+  rawToken: string
+): Promise<ValidateTokenResult | null> {
+  if (!rawToken.startsWith(TOKEN_PREFIX)) return null;
+
+  const prefix = rawToken.slice(0, 11);
+
+  // Look up by prefix to narrow the bcrypt comparison set
+  const candidates = await db
+    .select()
+    .from(apiTokens)
+    .where(
+      and(
+        eq(apiTokens.tokenPrefix, prefix),
+        isNull(apiTokens.revokedAt)
+      )
+    );
+
+  for (const candidate of candidates) {
+    // Check expiration
+    if (candidate.expiresAt && candidate.expiresAt < new Date()) {
+      continue;
+    }
+
+    const matches = await bcrypt.compare(rawToken, candidate.tokenHash);
+    if (matches) {
+      // Update usage stats
+      await db
+        .update(apiTokens)
+        .set({
+          lastUsedAt: new Date(),
+          totalCalls: candidate.totalCalls + 1,
+          successfulCalls: candidate.successfulCalls + 1,
+        })
+        .where(eq(apiTokens.id, candidate.id));
+
+      return {
+        userId: candidate.userId,
+        tokenId: candidate.id,
+        tokenName: candidate.name,
+      };
+    }
+  }
+
+  return null;
+}
+```
+
+**Why in `@claudefather/db`:** Both the MCP server and the web app depend on `@claudefather/db`. Putting validation here avoids duplicating bcrypt logic in two packages. The function takes a `Db` instance as a parameter (dependency injection), so it works with any database connection.
 
 ### Step 4: Drizzle Configuration
 
@@ -643,9 +743,15 @@ main().catch((err) => {
 **File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/index.ts`**
 
 ```typescript
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { randomUUID } from "node:crypto";
 import express from "express";
 import { createServer } from "./server.js";
+import { validateToken } from "@claudefather/db/auth";
+import { createDb } from "@claudefather/db/client";
+import { users } from "@claudefather/db/schema";
+import { eq } from "drizzle-orm";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -655,43 +761,83 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
+const db = createDb(DATABASE_URL);
 const app = express();
+app.use(express.json());
 
 // Health check for Railway
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// SSE endpoint for MCP connections
-app.get("/sse", async (req, res) => {
-  // Extract API key from query parameter or Authorization header
-  const apiKey =
-    req.query.api_key as string ||
-    req.headers.authorization?.replace("Bearer ", "");
+// Session storage: maps session IDs to transports
+const transports = new Map<string, StreamableHTTPServerTransport>();
 
+// Streamable HTTP endpoint — handles all MCP communication on a single path
+app.all("/mcp", async (req, res) => {
+  // Extract API key from Authorization header
+  const apiKey = req.headers.authorization?.replace("Bearer ", "");
   if (!apiKey) {
     res.status(401).json({ error: "API key required" });
     return;
   }
 
   // Validate the API key against the database
-  // (token validation logic from web app's auth module)
-  const user = await validateApiKey(apiKey);
-  if (!user) {
+  const tokenResult = await validateToken(db, apiKey);
+  if (!tokenResult) {
     res.status(401).json({ error: "Invalid or expired API key" });
     return;
   }
 
-  const server = createServer({ user, databaseUrl: DATABASE_URL! });
-  const transport = new SSEServerTransport("/messages", res);
-  await server.connect(transport);
-});
+  // Look up the user record
+  const [user] = await db
+    .select({
+      id: users.id,
+      githubUsername: users.githubUsername,
+      role: users.role,
+    })
+    .from(users)
+    .where(eq(users.id, tokenResult.userId));
 
-// Message endpoint for SSE transport
-app.post("/messages", express.json(), async (req, res) => {
-  // The SSE transport handles message routing internally
-  // This endpoint receives messages from the client
-  res.status(200).end();
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+  if (sessionId && transports.has(sessionId)) {
+    // Existing session — route to the stored transport
+    const transport = transports.get(sessionId)!;
+    await transport.handleRequest(req, res, req.body);
+  } else if (!sessionId && isInitializeRequest(req.body)) {
+    // New session — create transport and MCP server
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sid) => {
+        transports.set(sid, transport);
+      },
+    });
+
+    transport.onclose = () => {
+      const sid = transport.sessionId;
+      if (sid) transports.delete(sid);
+    };
+
+    const mcpServer = createServer({
+      user: { id: user.id, githubUsername: user.githubUsername, role: user.role },
+      databaseUrl: DATABASE_URL!,
+    });
+    await mcpServer.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  } else {
+    // Invalid request — no session ID and not an initialize request
+    res.status(400).json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "Bad Request: missing session or not an initialize request" },
+      id: null,
+    });
+  }
 });
 
 app.listen(PORT, () => {
@@ -699,9 +845,9 @@ app.listen(PORT, () => {
 });
 ```
 
-**Key difference from local npm package:** The server runs on Railway as a long-lived HTTP process. It uses SSE (Server-Sent Events) transport instead of stdio. The API key is passed via the MCP client configuration (as a header or query param), and the server validates it directly against the Neon database — no intermediate web API layer needed.
+**Key architecture:** The server runs on Railway as a long-lived HTTP process. It uses Streamable HTTP transport (the current MCP standard, replacing the deprecated SSE transport). All MCP communication happens on a single `/mcp` endpoint. Session IDs are passed via the `Mcp-Session-Id` header. A fresh `McpServer` instance is created per client connection (required to prevent cross-session message leaks per CVE-2026-25536). The API key is passed via the `Authorization` header, and the server validates it directly against the Neon database.
 
-**Railway deployment:** The `Dockerfile` builds the TypeScript and runs `node dist/index.js`. Railway auto-detects the Dockerfile and deploys. The `PORT` environment variable is set by Railway automatically.
+**Railway deployment:** The `Dockerfile` at the repo root builds the monorepo and runs `node packages/mcp-server/dist/index.js`. Railway auto-detects the Dockerfile. The `PORT` environment variable is set by Railway automatically.
 
 ### Step 8: MCP Server Tool Registration
 
@@ -761,11 +907,20 @@ export function createServer(config: ServerConfig): McpServer {
     {
       title: "Check for Skill Updates",
       description:
-        "Lightweight check for available skill updates without syncing. " +
-        "Returns a list of skills with new versions available.",
-      inputSchema: z.object({}),
+        "Compares your installed skill versions against the registry. " +
+        "Pass your installed skills with their versions to see what's outdated.",
+      inputSchema: z.object({
+        installed: z
+          .array(
+            z.object({
+              slug: z.string().describe("Skill directory name"),
+              version: z.string().describe("Currently installed version"),
+            })
+          )
+          .describe("List of installed skills with their current versions"),
+      }),
     },
-    async () => checkUpdates(db, config.user)
+    async (args) => checkUpdates(db, config.user, args)
   );
 
   // ─── claudefather_whoami ───────────────────────────────────────────────────
@@ -944,80 +1099,80 @@ export async function syncSkills(
       }),
     }],
   };
-  }
-
-  if (!args.dryRun && (created > 0 || updated > 0)) {
-    summary.push(
-      "",
-      "Changes will take effect at the start of your next Claude Code session."
-    );
-  }
-
-  return {
-    content: [{ type: "text" as const, text: summary.join("\n") }],
-  };
 }
 ```
 
 ### Step 12: Check Updates Tool
 
+The check-updates tool runs on Railway (no local filesystem access). The client (Claude Code) must send its installed skill versions as input. The server compares against the database and reports differences.
+
 **File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/tools/check-updates.ts`**
 
 ```typescript
-import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
-import type { ApiClient } from "../lib/api-client.js";
+import type { DbClient } from "../lib/db.js";
+import { skills, skillVersions } from "@claudefather/db/schema";
+import { eq, and } from "drizzle-orm";
 
-function getInstalledVersions(): { slug: string; version: string }[] {
-  const skillsDir = join(homedir(), ".claude", "skills");
-  if (!existsSync(skillsDir)) return [];
-
-  const installed: { slug: string; version: string }[] = [];
-
-  for (const dir of readdirSync(skillsDir)) {
-    if (dir === "_shared") continue;
-    const skillPath = join(skillsDir, dir, "SKILL.md");
-    if (!existsSync(skillPath)) continue;
-
-    // For Phase 01, installed skills from the seed are all v1.0.0.
-    // In Phase 03 (versioning), a .claudefather-version file will track
-    // the installed version per skill. For now, default to "1.0.0".
-    const versionFile = join(skillsDir, dir, ".claudefather-version");
-    const version = existsSync(versionFile)
-      ? readFileSync(versionFile, "utf-8").trim()
-      : "1.0.0";
-
-    installed.push({ slug: dir, version });
-  }
-
-  return installed;
+interface InstalledSkill {
+  slug: string;
+  version: string;
 }
 
 export async function checkUpdates(
-  client: ApiClient
+  db: DbClient,
+  user: { id: string },
+  args: { installed: InstalledSkill[] }
 ): Promise<{ content: { type: "text"; text: string }[] }> {
-  const installed = getInstalledVersions();
-
-  if (installed.length === 0) {
+  if (!args.installed || args.installed.length === 0) {
     return {
       content: [
         {
           type: "text" as const,
-          text: "No skills installed locally. Run claudefather_sync to install skills.",
+          text: "No installed skills provided. Pass your installed skill versions to check for updates.",
         },
       ],
     };
   }
 
-  const updates = await client.checkUpdates(installed);
+  const updates: {
+    slug: string;
+    currentVersion: string;
+    latestVersion: string;
+    changelog: string | null;
+  }[] = [];
+
+  for (const { slug, version } of args.installed) {
+    const [latest] = await db
+      .select({
+        version: skillVersions.version,
+        changelog: skillVersions.changelog,
+      })
+      .from(skills)
+      .innerJoin(
+        skillVersions,
+        and(
+          eq(skillVersions.skillId, skills.id),
+          eq(skillVersions.isLatest, true)
+        )
+      )
+      .where(eq(skills.slug, slug));
+
+    if (latest && latest.version !== version) {
+      updates.push({
+        slug,
+        currentVersion: version,
+        latestVersion: latest.version,
+        changelog: latest.changelog,
+      });
+    }
+  }
 
   if (updates.length === 0) {
     return {
       content: [
         {
           type: "text" as const,
-          text: `All ${installed.length} installed skills are up to date.`,
+          text: `All ${args.installed.length} installed skills are up to date.`,
         },
       ],
     };
@@ -1045,19 +1200,13 @@ export async function checkUpdates(
 **File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/tools/whoami.ts`**
 
 ```typescript
-import type { ApiClient } from "../lib/api-client.js";
-
 export async function whoami(
-  client: ApiClient
+  user: { id: string; githubUsername: string; role: string }
 ): Promise<{ content: { type: "text"; text: string }[] }> {
-  const user = await client.whoami();
-
   const lines = [
     `GitHub: @${user.githubUsername}`,
-    `Name: ${user.displayName || "(not set)"}`,
     `Role: ${user.role}`,
-    `Token: ${user.tokenName}`,
-    `Expires: ${user.tokenExpiresAt || "Never"}`,
+    `User ID: ${user.id}`,
   ];
 
   return {
@@ -1065,6 +1214,8 @@ export async function whoami(
   };
 }
 ```
+
+**Why no API call:** The user's identity is already known at connection time — the MCP server validates the API key during the initial handshake and passes user info via `ServerConfig`. No additional database query needed.
 
 ### Step 14: Web App — NextAuth Configuration
 
@@ -1152,7 +1303,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { createDb } from "@claudefather/db/client";
-import { apiTokens, users } from "@claudefather/db/schema";
+import { apiTokens } from "@claudefather/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -1160,6 +1311,9 @@ const db = createDb(process.env.DATABASE_URL!);
 const TOKEN_PREFIX = "cf_";
 const TOKEN_BYTES = 32; // 32 bytes = 64 hex chars + "cf_" prefix = 67 chars total
 const BCRYPT_ROUNDS = 12;
+
+// Note: validateToken lives in @claudefather/db/auth (shared by MCP server and web app)
+// This module only handles token generation, revocation, and rotation (web-only operations)
 
 export interface GenerateTokenResult {
   id: string;
@@ -1200,53 +1354,6 @@ export async function generateToken(
     prefix: tokenPrefix,
     expiresAt,
   };
-}
-
-export async function validateToken(
-  rawToken: string
-): Promise<{ userId: string; tokenId: string; tokenName: string } | null> {
-  if (!rawToken.startsWith(TOKEN_PREFIX)) return null;
-
-  const prefix = rawToken.slice(0, 11);
-
-  // Look up by prefix to narrow the bcrypt comparison set
-  const candidates = await db
-    .select()
-    .from(apiTokens)
-    .where(
-      and(
-        eq(apiTokens.tokenPrefix, prefix),
-        isNull(apiTokens.revokedAt)
-      )
-    );
-
-  for (const candidate of candidates) {
-    // Check expiration
-    if (candidate.expiresAt && candidate.expiresAt < new Date()) {
-      continue;
-    }
-
-    const matches = await bcrypt.compare(rawToken, candidate.tokenHash);
-    if (matches) {
-      // Update usage stats
-      await db
-        .update(apiTokens)
-        .set({
-          lastUsedAt: new Date(),
-          totalCalls: candidate.totalCalls + 1,
-          successfulCalls: candidate.successfulCalls + 1,
-        })
-        .where(eq(apiTokens.id, candidate.id));
-
-      return {
-        userId: candidate.userId,
-        tokenId: candidate.id,
-        tokenName: candidate.name,
-      };
-    }
-  }
-
-  return null;
 }
 
 export async function revokeToken(
@@ -1445,7 +1552,7 @@ export async function POST(
 
 ```typescript
 import { NextResponse } from "next/server";
-import { validateToken } from "@/lib/tokens";
+import { validateToken } from "@claudefather/db/auth";
 import { createDb } from "@claudefather/db/client";
 import { skills, skillVersions } from "@claudefather/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -1453,7 +1560,7 @@ import { eq, and } from "drizzle-orm";
 const db = createDb(process.env.DATABASE_URL!);
 
 // GET /api/skills — list all skills with their latest version content
-// Authenticated via Bearer token (MCP server calls this)
+// Authenticated via Bearer token
 export async function GET(request: Request) {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -1461,7 +1568,7 @@ export async function GET(request: Request) {
   }
 
   const token = authHeader.slice(7);
-  const validated = await validateToken(token);
+  const validated = await validateToken(db, token);
   if (!validated) {
     return NextResponse.json(
       { error: "Invalid or expired token" },
@@ -1497,7 +1604,7 @@ export async function GET(request: Request) {
 
 ```typescript
 import { NextResponse } from "next/server";
-import { validateToken } from "@/lib/tokens";
+import { validateToken } from "@claudefather/db/auth";
 import { createDb } from "@claudefather/db/client";
 import { skills, skillVersions } from "@claudefather/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -1515,7 +1622,7 @@ export async function GET(
   }
 
   const token = authHeader.slice(7);
-  const validated = await validateToken(token);
+  const validated = await validateToken(db, token);
   if (!validated) {
     return NextResponse.json(
       { error: "Invalid or expired token" },
@@ -1558,7 +1665,7 @@ export async function GET(
 
 ```typescript
 import { NextResponse } from "next/server";
-import { validateToken } from "@/lib/tokens";
+import { validateToken } from "@claudefather/db/auth";
 import { createDb } from "@claudefather/db/client";
 import { users, apiTokens } from "@claudefather/db/schema";
 import { eq } from "drizzle-orm";
@@ -1572,7 +1679,7 @@ export async function GET(request: Request) {
   }
 
   const token = authHeader.slice(7);
-  const validated = await validateToken(token);
+  const validated = await validateToken(db, token);
   if (!validated) {
     return NextResponse.json(
       { error: "Invalid or expired token" },
@@ -1610,7 +1717,7 @@ export async function GET(request: Request) {
 
 ```typescript
 import { NextResponse } from "next/server";
-import { validateToken } from "@/lib/tokens";
+import { validateToken } from "@claudefather/db/auth";
 import { createDb } from "@claudefather/db/client";
 import { skills, skillVersions } from "@claudefather/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -1624,7 +1731,7 @@ export async function POST(request: Request) {
   }
 
   const token = authHeader.slice(7);
-  const validated = await validateToken(token);
+  const validated = await validateToken(db, token);
   if (!validated) {
     return NextResponse.json(
       { error: "Invalid or expired token" },
@@ -1778,7 +1885,8 @@ export function CopySnippet() {
     {
       mcpServers: {
         claudefather: {
-          url: `${MCP_SERVER_URL}/sse`,
+          type: "http",
+          url: `${MCP_SERVER_URL}/mcp`,
           headers: {
             Authorization: "Bearer <your-token>",
           },
@@ -1889,7 +1997,7 @@ Copy the Client ID and Client Secret to Vercel environment variables.
 Deploy the MCP server to Railway:
 
 1. **Create Railway project** — Link to the `the-claudefather` GitHub repo
-2. **Configure service** — Point to `packages/mcp-server/` as the root directory, Railway auto-detects the Dockerfile
+2. **Configure service** — Point to the repo root (Dockerfile is at root for monorepo build), Railway auto-detects the Dockerfile
 3. **Set environment variables** — `DATABASE_URL` (same Neon connection string as Vercel)
 4. **Custom domain** (optional) — `mcp.the-claudefather.railway.app` or custom domain
 5. **Health check** — Configure Railway health check to `GET /health`
@@ -1913,12 +2021,12 @@ The MCP server shares the same Neon database as the Vercel web app. Both service
 **Package: `@claudefather/mcp-server`**
 
 5. **API key validation** — Test valid key returns user, expired key returns null, revoked key returns null.
-6. **SSE transport** — Verify server starts and accepts SSE connections on `/sse` endpoint.
+6. **Streamable HTTP transport** — Verify server starts and accepts connections on `/mcp` endpoint.
 7. **Sync tool — returns content** — Call `claudefather_sync`, verify response contains JSON with skill content, versions, and file paths.
 8. **Sync tool — dry run** — Call with `dryRun: true`, verify response contains skill list without file content.
 9. **Sync tool — filtered skills** — Call with `skills: ["review-pr"]`, verify only that skill is returned.
 10. **Health endpoint** — Verify `GET /health` returns 200 with `{"status": "ok"}`.
-11. **Unauthenticated request** — Verify `/sse` without API key returns 401.
+11. **Unauthenticated request** — Verify `/mcp` without API key returns 401.
 
 **Package: `@claudefather/web`**
 
@@ -1960,7 +2068,7 @@ Add under `## [Unreleased]` > `### Added`:
 ```markdown
 - **Skills platform foundation** — New `packages/` monorepo with three packages:
   - `@claudefather/db`: PostgreSQL schema (Neon serverless) with tables for users, API tokens, skills, skill versions, and user skill pins. Drizzle ORM for type-safe queries. Seed script imports all 38 skills as v1.0.0.
-  - `@claudefather/mcp-server`: Railway-hosted MCP server (SSE transport) with three tools — `claudefather_sync` (fetch skills from registry, returns content for Claude Code to write), `claudefather_check_updates` (check for newer versions), `claudefather_whoami` (show auth status). Connects directly to Neon database.
+  - `@claudefather/mcp-server`: Railway-hosted MCP server (Streamable HTTP transport) with three tools — `claudefather_sync` (fetch skills from registry, returns content for Claude Code to write), `claudefather_check_updates` (check for newer versions), `claudefather_whoami` (show auth status). Connects directly to Neon database.
   - `@claudefather/web`: Next.js web app on Vercel with GitHub OAuth login, API token management (generate, revoke, rotate), connection health metrics, and MCP configuration snippet.
 ```
 
@@ -1983,7 +2091,8 @@ Claudefather includes a centralized skills registry that replaces git-clone sync
 {
   "mcpServers": {
     "claudefather": {
-      "url": "https://mcp.the-claudefather.railway.app/sse",
+      "type": "http",
+      "url": "https://mcp.the-claudefather.railway.app/mcp",
       "headers": {
         "Authorization": "Bearer <your-token>"
       }
@@ -2034,7 +2143,7 @@ No local installation required — the MCP server is hosted on Railway.
 - [ ] `packages/db/` — `users` table has GitHub-specific columns (githubId, githubUsername)
 - [ ] `packages/db/` — `api_tokens` table stores bcrypt hash, never plaintext
 - [ ] `packages/db/` — `skill_versions` has unique index on (skillId, version)
-- [ ] `packages/mcp-server/` — Deploys to Railway and starts with SSE transport on configured PORT
+- [ ] `packages/mcp-server/` — Deploys to Railway and starts with Streamable HTTP transport on configured PORT
 - [ ] `packages/mcp-server/` — `/health` endpoint returns 200
 - [ ] `packages/mcp-server/` — Rejects connections without valid API key (401)
 - [ ] `packages/mcp-server/` — `claudefather_sync` returns skill content as JSON for Claude Code to write
