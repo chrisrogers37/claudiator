@@ -785,7 +785,7 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 ### Performance Considerations
 
 - **`check_updates` call:** Single request to Railway-hosted MCP server (direct DB query). Should complete in < 2 seconds even with 34+ skills.
-- **`sync_skills` call:** Returns full file content for all approved skills in one MCP tool response. For a full sync of 34 skills, this could be 500KB-1MB of content. Acceptable for a single SSE response.
+- **`sync_skills` call:** Returns full file content for all approved skills in one MCP tool response. For a full sync of 34 skills, this could be 500KB-1MB of content. Acceptable for a single Streamable HTTP response.
 - **Local `.version` file reads:** 34 Read tool calls. Claude Code should execute these in parallel. Total time: < 1 second.
 - **Backup `cp -r`:** Copies entire `~/.claude/skills/` directory (34 skills). At ~500KB total, this completes in < 1 second.
 
