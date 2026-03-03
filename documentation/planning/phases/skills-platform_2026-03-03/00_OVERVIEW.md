@@ -55,7 +55,7 @@ Phase 06: Intelligence Pipeline  ◄────(depends on 01, 04)────�
 |-----------|-----------|---------|
 | Database | PostgreSQL (Neon serverless) | Neon |
 | Web App + API | Next.js 14+ / TypeScript | Vercel |
-| MCP Server | TypeScript npm package (@modelcontextprotocol/sdk) | Runs locally on user machines |
+| MCP Server | TypeScript (@modelcontextprotocol/sdk, SSE transport) | Railway |
 | Auth | GitHub OAuth | Via Next.js app |
 | AI Editing | Anthropic API (Claude Sonnet) | API calls from server |
 | Intelligence Distillation | Anthropic API (Claude Haiku) | Scheduled serverless functions |
@@ -63,11 +63,12 @@ Phase 06: Intelligence Pipeline  ◄────(depends on 01, 04)────�
 
 ## Key Design Decisions
 
-1. **Skills must live on local filesystem** — Claude Code loads skills from `~/.claude/skills/` at session start. MCP writes to disk; it cannot serve skills at runtime.
-2. **MCP replaces git-clone distribution** — Same UX (interactive `/claudefather-sync`), but backed by registry instead of file diff.
-3. **GitHub OAuth for identity** — Any GitHub account, not org-specific. Tokens linked to GitHub identity with expiration and rotation.
-4. **Workshop is a staging area** — AI proposes changes, maintainer reviews and approves. No autonomous skill modification.
-5. **Backward compatible** — Users without MCP configured fall back to legacy git-based sync.
+1. **Skills must live on local filesystem** — Claude Code loads skills from `~/.claude/skills/` at session start. MCP tools return skill content; Claude Code writes to disk. MCP cannot serve skills at runtime.
+2. **MCP is a remote server on Railway** — No local npm package to install. Users configure a URL + token in `settings.json`. The MCP server handles auth, sync, telemetry, and feedback over SSE transport.
+3. **MCP replaces git-clone distribution** — Same UX (interactive `/claudefather-sync`), but backed by registry instead of file diff.
+4. **GitHub OAuth for identity** — Any GitHub account, not org-specific. Tokens linked to GitHub identity with expiration and rotation.
+5. **Workshop is a staging area** — AI proposes changes, maintainer reviews and approves. No autonomous skill modification.
+6. **Backward compatible** — Users without MCP configured fall back to legacy git-based sync.
 
 ## Phase Documents
 
