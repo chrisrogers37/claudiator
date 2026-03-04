@@ -123,7 +123,7 @@ async function main() {
         slug,
         name,
         description,
-        category,
+        category: category as typeof skills.$inferInsert.category,
         isUserInvocable,
       })
       .onConflictDoNothing()
@@ -157,7 +157,7 @@ async function main() {
         slug: "_shared",
         name: "Shared Orchestration Guide",
         description: "Shared reference for skills that use subagent orchestration. Not a skill.",
-        category: "utilities",
+        category: "utilities" as const,
         isUserInvocable: false,
       })
       .onConflictDoNothing()

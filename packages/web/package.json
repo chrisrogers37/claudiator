@@ -11,7 +11,7 @@
     "next": "^15.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "next-auth": "^5.0.0",
+    "next-auth": "5.0.0-beta.30",
     "@auth/drizzle-adapter": "^1.7.0",
     "@claudefather/db": "workspace:*",
     "@neondatabase/serverless": "^1.0.0",
