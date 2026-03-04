@@ -4,6 +4,8 @@ import { createDbClient } from "./lib/db.js";
 import { syncSkills } from "./tools/sync.js";
 import { checkUpdates } from "./tools/check-updates.js";
 import { whoami } from "./tools/whoami.js";
+import { logInvocation, logInvocationSchema } from "./tools/log-invocation.js";
+import { sessionFeedback, sessionFeedbackSchema } from "./tools/session-feedback.js";
 
 interface ServerConfig {
   user: { id: string; githubUsername: string; role: string };
@@ -77,6 +79,30 @@ export function createServer(config: ServerConfig): McpServer {
       inputSchema: z.object({}),
     },
     async () => whoami(config.user)
+  );
+
+  // ─── claudefather_log_invocation ──────────────────────────────────────────
+  server.registerTool(
+    "claudefather_log_invocation",
+    {
+      title: "Log Skill Invocation",
+      description:
+        "Log a skill invocation for usage telemetry. Fire-and-forget — returns immediately.",
+      inputSchema: logInvocationSchema,
+    },
+    async (args) => logInvocation(db, config.user, args)
+  );
+
+  // ─── claudefather_session_feedback ──────────────────────────────────────────
+  server.registerTool(
+    "claudefather_session_feedback",
+    {
+      title: "Submit Session Feedback",
+      description:
+        "Submit end-of-session skill ratings and optional comments.",
+      inputSchema: sessionFeedbackSchema,
+    },
+    async (args) => sessionFeedback(db, config.user, args)
   );
 
   return server;
