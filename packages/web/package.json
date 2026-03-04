@@ -1,0 +1,29 @@
+{
+  "name": "@claudefather/web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^15.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "next-auth": "^5.0.0",
+    "@auth/drizzle-adapter": "^1.7.0",
+    "@claudefather/db": "workspace:*",
+    "@neondatabase/serverless": "^1.0.0",
+    "drizzle-orm": "^0.38.0",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "tailwindcss": "^4.0.0",
+    "postcss": "^8.5.0"
+  }
+}
