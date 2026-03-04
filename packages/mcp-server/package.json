@@ -1,0 +1,29 @@
+{
+  "name": "@claudefather/mcp-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MCP server for claudefather skill registry — hosted on Railway, Streamable HTTP transport.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "@claudefather/db": "workspace:*",
+    "@neondatabase/serverless": "^1.0.0",
+    "drizzle-orm": "^0.38.0",
+    "zod": "^3.25.0",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0",
+    "@types/express": "^4.17.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
