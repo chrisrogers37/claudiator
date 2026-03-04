@@ -1,0 +1,118 @@
+{
+  "_comment": "Recommended permission patterns for ~/.claude/settings.json. Used by /claudefather-setup to offer missing permissions. Categories are presented to the user for opt-in. Never removes existing entries.",
+  "categories": [
+    {
+      "id": "core",
+      "name": "Core CLI Tools",
+      "description": "Essential shell commands for file navigation, git, and GitHub CLI.",
+      "default": true,
+      "permissions": [
+        "Bash(git *)",
+        "Bash(gh *)",
+        "Bash(ls *)",
+        "Bash(cat *)",
+        "Bash(head *)",
+        "Bash(tail *)",
+        "Bash(wc *)",
+        "Bash(which *)",
+        "Bash(pwd *)",
+        "Bash(find *)",
+        "Bash(grep *)",
+        "Bash(mkdir *)",
+        "Bash(touch *)",
+        "Bash(diff *)",
+        "Bash(chmod *)",
+        "Bash(cp *)",
+        "Bash(mv *)",
+        "Bash(curl *)",
+        "Bash(lsof *)",
+        "Bash(test *)"
+      ]
+    },
+    {
+      "id": "python",
+      "name": "Python Ecosystem",
+      "description": "Python interpreter, package management, testing, and linting.",
+      "default": false,
+      "permissions": [
+        "Bash(python *)",
+        "Bash(python3 *)",
+        "Bash(pip *)",
+        "Bash(pip3 *)",
+        "Bash(pytest *)",
+        "Bash(ruff *)"
+      ]
+    },
+    {
+      "id": "node",
+      "name": "Node.js Ecosystem",
+      "description": "Node runtime, npm/npx, and code formatting.",
+      "default": false,
+      "permissions": [
+        "Bash(node *)",
+        "Bash(npm *)",
+        "Bash(npx *)",
+        "Bash(prettier *)"
+      ]
+    },
+    {
+      "id": "data",
+      "name": "Data & Analytics Tools",
+      "description": "Snowflake, dbt, and database CLI tools.",
+      "default": false,
+      "permissions": [
+        "Bash(snowsql *)",
+        "Bash(dbt *)"
+      ]
+    },
+    {
+      "id": "browser-automation",
+      "name": "Browser Automation",
+      "description": "Headless Chrome/Chromium for screenshots and visual testing (used by design-review skill).",
+      "default": false,
+      "permissions": [
+        "Bash(/Applications/Google*)",
+        "Bash(google-chrome*)",
+        "Bash(chromium*)"
+      ]
+    },
+    {
+      "id": "claude-workflow",
+      "name": "Claude Code Workflow",
+      "description": "Non-Bash tool permissions needed by skills that use subagents or file operations.",
+      "default": true,
+      "permissions": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep",
+        "Glob",
+        "WebFetch",
+        "WebSearch"
+      ]
+    },
+    {
+      "id": "sandbox-extensions",
+      "name": "Sandbox Filesystem Extensions",
+      "description": "Extends sandbox write access to directories used by claudefather workflows. Only useful when sandbox is enabled.",
+      "default": false,
+      "permissions": [
+        "Edit(/tmp/**)",
+        "Edit(~/.claude/**)"
+      ]
+    },
+    {
+      "id": "claudefather-mcp",
+      "name": "Claudefather Platform",
+      "description": "MCP tool permissions for the claudefather skills platform (telemetry, feedback, sync). Requires MCP server URL configured in settings.json.",
+      "default": false,
+      "permissions": [
+        "mcp__claudefather__claudefather_log_invocation",
+        "mcp__claudefather__claudefather_session_feedback",
+        "mcp__claudefather__claudefather_sync",
+        "mcp__claudefather__claudefather_check_updates",
+        "mcp__claudefather__claudefather_whoami"
+      ]
+    }
+  ]
+}
