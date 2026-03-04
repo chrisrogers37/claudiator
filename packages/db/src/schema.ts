@@ -6,6 +6,7 @@ import {
   boolean,
   jsonb,
   integer,
+  smallint,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -120,5 +121,53 @@ export const userSkillPins = pgTable(
   },
   (table) => [
     uniqueIndex("user_skill_pins_user_skill_idx").on(table.userId, table.skillId),
+  ]
+);
+
+// ─── Skill Invocations (Telemetry) ─────────────────────────────────────────
+
+export const skillInvocations = pgTable(
+  "skill_invocations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    skillSlug: text("skill_slug").notNull(),
+    skillVersion: text("skill_version"),
+    invokedAt: timestamp("invoked_at", { withTimezone: true }).notNull().defaultNow(),
+    sessionId: text("session_id").notNull(),
+    success: boolean("success"),
+    durationMs: integer("duration_ms"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+  },
+  (table) => [
+    index("idx_invocations_skill_slug").on(table.skillSlug),
+    index("idx_invocations_user_id").on(table.userId),
+    index("idx_invocations_session_id").on(table.sessionId),
+    index("idx_invocations_invoked_at").on(table.invokedAt),
+  ]
+);
+
+// ─── Skill Feedback ────────────────────────────────────────────────────────
+
+export const skillFeedback = pgTable(
+  "skill_feedback",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    skillSlug: text("skill_slug").notNull(),
+    skillVersion: text("skill_version"),
+    rating: smallint("rating").notNull(), // 1-5
+    comment: text("comment"),
+    sessionId: text("session_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_feedback_skill_slug").on(table.skillSlug),
+    index("idx_feedback_user_id").on(table.userId),
+    index("idx_feedback_session_id").on(table.sessionId),
   ]
 );
