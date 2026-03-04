@@ -418,28 +418,36 @@ Keep all steps, all notes, all the permissions merge logic (Steps 6.5, 6.6, 6.7)
 
 These tool schemas must be implemented in the MCP server (Phase 01). Document them here so the Phase 01 implementer knows what Phase 03 expects.
 
-**Tool: `claudefather_check_updates`**
+**Tool: `claudefather_check_updates`** (already exists from Phase 01 — extend output)
 
 ```
 Name: claudefather_check_updates
 Description: Compare installed skill versions against the registry. Returns a diff manifest showing available updates, new skills, removed skills, and pinned skills.
 
-Input Schema:
+Input Schema (Phase 01, unchanged):
 {
   "type": "object",
   "properties": {
-    "installed_versions": {
-      "type": "object",
-      "description": "Map of skill slug to installed semver string. Missing .version files should report as '0.0.0'.",
-      "additionalProperties": { "type": "string" }
+    "installed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slug": { "type": "string" },
+          "version": { "type": "string" }
+        },
+        "required": ["slug", "version"]
+      }
     }
   },
-  "required": ["installed_versions"]
+  "required": ["installed"]
 }
 
 Output: JSON object with keys: updates, new_skills, removed_skills, pinned_skills, up_to_date
 (See Step 2 of the sync flow for the full response schema)
 ```
+
+**Note:** The input schema matches the existing Phase 01 implementation. Phase 03 extends the output to include pinned_skills, new_skills, and removed_skills categories (Phase 01 only returns basic update info).
 
 **Tool: `claudefather_sync_skills`**
 
@@ -573,11 +581,11 @@ Output: JSON object with slug, version, previous_version, changelog, created_at.
 Creates new record in skill_versions with is_latest=true, sets previous latest to is_latest=false.
 ```
 
-### Step 6: Define Database Tables (Phase 01 Schema)
+### Step 6: Define Database Tables
 
-These tables must exist in the Phase 01 database. Document them here for cross-reference.
+`skill_versions` and `user_skill_pins` already exist from Phase 01. The `sync_events` table must be created in this phase.
 
-**Table: `skill_versions`**
+**Table: `skill_versions`** (Phase 01 — exists)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -594,7 +602,7 @@ These tables must exist in the Phase 01 database. Document them here for cross-r
 
 **Index:** `skill_id WHERE is_latest = true` -- fast lookup of current version per skill.
 
-**Table: `user_skill_pins`**
+**Table: `user_skill_pins`** (Phase 01 — exists)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -606,7 +614,7 @@ These tables must exist in the Phase 01 database. Document them here for cross-r
 
 **Unique constraint:** `(user_id, skill_id)` -- one pin per user per skill.
 
-**Table: `sync_events`**
+**Table: `sync_events`** (NEW — created in Phase 03)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -617,6 +625,8 @@ These tables must exist in the Phase 01 database. Document them here for cross-r
 | `created_at` | TIMESTAMP | When the event occurred |
 
 **Index:** `user_id, created_at DESC` -- for audit trail queries.
+
+**Implementation:** Add this table to `packages/db/src/schema.ts` as a Drizzle `pgTable` definition alongside the existing tables. Generate migration with `drizzle-kit generate`.
 
 ### Step 7: Update `/claudefather-setup` to Seed Version Files
 

@@ -1,11 +1,13 @@
 # Phase 02: Usage Telemetry & Feedback Collection
 
-**Status:** PENDING
+**Status:** 🔧 IN PROGRESS
+**Started:** 2026-03-04
 **PR Title:** add usage telemetry schema, MCP tools, and feedback collection for skills platform
 **Risk Level:** Medium
 **Estimated Effort:** High (~3-4 days)
-**Files Modified:** 3 (`packages/mcp-server/src/server.ts`, `packages/web/src/app/api/...`, `global/skills/session-handoff/SKILL.md`)
-**Files Created:** 14
+**Files Modified:** 3 (`packages/db/src/schema.ts`, `packages/mcp-server/src/server.ts`, `global/skills/session-handoff/SKILL.md`)
+**Files Created:** ~10
+**ORM:** Drizzle (NOT Prisma — Phase 01 uses Drizzle ORM with Neon serverless)
 
 ---
 
@@ -19,144 +21,59 @@ The claudefather maintainer is flying blind on skill adoption. With 38 skills di
 
 - **Depends on:** Phase 01 (Skill Registry & MCP Server) -- requires the PostgreSQL database with `users` table, the Railway-hosted MCP server, the Next.js web app with authentication, and the API token system.
 - **Unlocks:** Phase 04 (Workshop -- needs telemetry data to display usage stats and feedback), Phase 05 (Team Dashboard -- needs aggregate telemetry for admin views).
-- **Parallel safety:** This phase touches completely different files than Phase 03 (Intelligence Pipeline). They can run in parallel after Phase 01 completes.
+- **Parallel safety:** This phase touches completely different files than Phase 03 (Skill Versioning & Sync). They can run in parallel after Phase 01 completes.
 
 ---
 
 ## Detailed Implementation Plan
 
-### Step 1: Database Migrations -- Telemetry Tables
+### Step 1: Database Schema -- Telemetry Tables
 
-Create three new database migration files. Phase 01 establishes the migration framework (assumed: Prisma or raw SQL migrations in `packages/web/prisma/migrations/` or `packages/db/migrations/`). This phase adds migrations that run after the Phase 01 `users` and `skills` tables exist.
+Add two new tables to the Drizzle schema in `packages/db/src/schema.ts`. Phase 01 uses Drizzle ORM with `@neondatabase/serverless` (neon-http driver). The `sync_events` table is deferred to Phase 03 since that phase owns sync operations.
 
-**New file:** `packages/web/prisma/migrations/<timestamp>_add_telemetry_tables/migration.sql`
+**File:** `packages/db/src/schema.ts` — add after existing table definitions:
 
-```sql
--- skill_invocations: logs each time a skill is used in a Claude Code session
-CREATE TABLE skill_invocations (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    skill_slug      TEXT NOT NULL,
-    skill_version   TEXT,              -- nullable: version unknown for unregistered skills
-    invoked_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    session_id      TEXT NOT NULL,     -- opaque string, groups invocations in one Claude session
-    success         BOOLEAN,           -- null if unknown (fire-and-forget, no result yet)
-    duration_ms     INTEGER,           -- optional: how long the skill ran
-    metadata        JSONB DEFAULT '{}' -- extensibility: future fields without schema changes
-);
+```typescript
+// skill_invocations: logs each time a skill is used in a Claude Code session
+export const skillInvocations = pgTable("skill_invocations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  skillSlug: text("skill_slug").notNull(),
+  skillVersion: text("skill_version"),
+  invokedAt: timestamp("invoked_at", { withTimezone: true }).notNull().defaultNow(),
+  sessionId: text("session_id").notNull(),
+  success: boolean("success"),
+  durationMs: integer("duration_ms"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+}, (table) => [
+  index("idx_invocations_skill_slug").on(table.skillSlug),
+  index("idx_invocations_user_id").on(table.userId),
+  index("idx_invocations_session_id").on(table.sessionId),
+  index("idx_invocations_invoked_at").on(table.invokedAt),
+]);
 
--- Index for querying by skill (Phase 04 Workshop stats)
-CREATE INDEX idx_invocations_skill_slug ON skill_invocations(skill_slug);
--- Index for querying by user (Phase 05 Dashboard)
-CREATE INDEX idx_invocations_user_id ON skill_invocations(user_id);
--- Index for querying by session (feedback correlation)
-CREATE INDEX idx_invocations_session_id ON skill_invocations(session_id);
--- Index for time-range queries (dashboard date filters)
-CREATE INDEX idx_invocations_invoked_at ON skill_invocations(invoked_at);
-
--- sync_events: logs each time a user syncs skills from the registry
-CREATE TABLE sync_events (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    synced_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    skills_updated  TEXT[] DEFAULT '{}',
-    skills_added    TEXT[] DEFAULT '{}',
-    skills_removed  TEXT[] DEFAULT '{}',
-    from_version    TEXT,              -- git commit hash or registry version before sync
-    to_version      TEXT               -- git commit hash or registry version after sync
-);
-
-CREATE INDEX idx_sync_events_user_id ON sync_events(user_id);
-CREATE INDEX idx_sync_events_synced_at ON sync_events(synced_at);
-
--- skill_feedback: end-of-session ratings and comments per skill
-CREATE TABLE skill_feedback (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    skill_slug      TEXT NOT NULL,
-    skill_version   TEXT,
-    rating          SMALLINT NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    comment         TEXT,              -- optional free-text, user-authored
-    session_id      TEXT NOT NULL,     -- correlates with skill_invocations
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_feedback_skill_slug ON skill_feedback(skill_slug);
-CREATE INDEX idx_feedback_user_id ON skill_feedback(user_id);
-CREATE INDEX idx_feedback_session_id ON skill_feedback(session_id);
+// skill_feedback: end-of-session ratings and comments per skill
+export const skillFeedback = pgTable("skill_feedback", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  skillSlug: text("skill_slug").notNull(),
+  skillVersion: text("skill_version"),
+  rating: smallint("rating").notNull(),
+  comment: text("comment"),
+  sessionId: text("session_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_feedback_skill_slug").on(table.skillSlug),
+  index("idx_feedback_user_id").on(table.userId),
+  index("idx_feedback_session_id").on(table.sessionId),
+]);
 ```
 
-**Why three tables instead of one:** `skill_invocations` is high-volume automated data (every skill call). `skill_feedback` is low-volume user-initiated data (end-of-session). `sync_events` tracks distribution events. Separating them allows different retention policies and query patterns.
+**Why two tables instead of one:** `skill_invocations` is high-volume automated data (every skill call). `skill_feedback` is low-volume user-initiated data (end-of-session). Separating them allows different retention policies and query patterns.
 
-**Update Prisma schema** (if Phase 01 uses Prisma): Add corresponding model definitions in `packages/web/prisma/schema.prisma`:
+**Note:** `sync_events` is created in Phase 03 (Skill Versioning & Sync) since that phase owns all sync operations.
 
-```prisma
-model SkillInvocation {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
-  skillSlug    String   @map("skill_slug")
-  skillVersion String?  @map("skill_version")
-  invokedAt    DateTime @default(now()) @map("invoked_at") @db.Timestamptz
-  sessionId    String   @map("session_id")
-  success      Boolean?
-  durationMs   Int?     @map("duration_ms")
-  metadata     Json     @default("{}")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([skillSlug])
-  @@index([userId])
-  @@index([sessionId])
-  @@index([invokedAt])
-  @@map("skill_invocations")
-}
-
-model SyncEvent {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId        String   @map("user_id") @db.Uuid
-  syncedAt      DateTime @default(now()) @map("synced_at") @db.Timestamptz
-  skillsUpdated String[] @map("skills_updated")
-  skillsAdded   String[] @map("skills_added")
-  skillsRemoved String[] @map("skills_removed")
-  fromVersion   String?  @map("from_version")
-  toVersion     String?  @map("to_version")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([syncedAt])
-  @@map("sync_events")
-}
-
-model SkillFeedback {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
-  skillSlug    String   @map("skill_slug")
-  skillVersion String?  @map("skill_version")
-  rating       Int      @db.SmallInt
-  comment      String?
-  sessionId    String   @map("session_id")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([skillSlug])
-  @@index([userId])
-  @@index([sessionId])
-  @@map("skill_feedback")
-}
-```
-
-Also add the reverse relations to the `User` model (defined in Phase 01):
-
-```prisma
-model User {
-  // ... existing Phase 01 fields ...
-  invocations  SkillInvocation[]
-  syncEvents   SyncEvent[]
-  feedback     SkillFeedback[]
-}
-```
+After adding the schema, generate the migration with `npx drizzle-kit generate` from the `packages/db/` directory. Export the new tables from `packages/db/src/schema.ts` so they're available to both the MCP server and web app via `@claudefather/db/schema`.
 
 ### Step 2: MCP Telemetry Tools
 
@@ -166,6 +83,8 @@ Add two new tools to the Railway-hosted MCP server. Phase 01 establishes the MCP
 
 ```typescript
 import { z } from "zod";
+import { skillInvocations } from "@claudefather/db/schema";
+import type { Db } from "@claudefather/db/client";
 
 export const logInvocationSchema = z.object({
   skill_slug: z.string().describe("The skill's directory name (e.g., 'session-handoff', 'product-enhance')"),
@@ -183,11 +102,10 @@ export type LogInvocationInput = z.infer<typeof logInvocationSchema>;
  */
 export async function handleLogInvocation(
   input: LogInvocationInput,
-  db: DbClient,
+  db: Db,
   user: { id: string }
 ): Promise<string> {
   // Fire-and-forget: do NOT await this promise.
-  // The caller (tool handler) should call this and return immediately.
   db.insert(skillInvocations)
     .values({
       userId: user.id,
@@ -196,8 +114,7 @@ export async function handleLogInvocation(
       success: input.success ?? null,
       durationMs: input.duration_ms ?? null,
     })
-    .catch((err) => {
-      // Silently swallow errors -- telemetry must never break the session
+    .catch((err: Error) => {
       console.error("[claudefather-mcp-server] telemetry error:", err.message);
     });
 
@@ -213,6 +130,8 @@ export async function handleLogInvocation(
 
 ```typescript
 import { z } from "zod";
+import { skillFeedback } from "@claudefather/db/schema";
+import type { Db } from "@claudefather/db/client";
 
 const ratingSchema = z.object({
   skill_slug: z.string(),
@@ -234,7 +153,7 @@ export type SessionFeedbackInput = z.infer<typeof sessionFeedbackSchema>;
  */
 export async function handleSessionFeedback(
   input: SessionFeedbackInput,
-  db: DbClient,
+  db: Db,
   user: { id: string }
 ): Promise<string> {
   const records = input.ratings.map((r) => ({
@@ -284,187 +203,76 @@ server.tool(
 );
 ```
 
-The MCP server connects directly to Neon PostgreSQL (same database as the web app). The `db` Drizzle client and `config.user` (authenticated from API key) are passed from the server setup in Phase 01.
+The MCP server connects directly to Neon PostgreSQL (same database as the web app). The `db` Drizzle client and `config.user` (authenticated from API key) are passed from the `createServer(config)` function in Phase 01's `packages/mcp-server/src/server.ts`.
 
-### Step 3: API Endpoints
+### Step 3: API Endpoints (Read-Only)
 
-Add four API route files to the Next.js web app (Phase 01 establishes the app structure).
+Add two read-only API routes to the Next.js web app for the future Dashboard (Phase 05). Write operations (logging invocations, submitting feedback) are handled exclusively by MCP tools — no duplicate write API endpoints needed since only Claude Code clients submit telemetry.
 
-**New file:** `packages/web/src/app/api/telemetry/invocation/route.ts`
-
-```typescript
-import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth"; // Phase 01 auth utility
-import { prisma } from "@/lib/prisma"; // Phase 01 Prisma client
-
-export async function POST(req: NextRequest) {
-  const user = await authenticateRequest(req);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await req.json();
-
-  // Support both single invocation and batch (array) format
-  const invocations = Array.isArray(body) ? body : [body];
-
-  // Validate each entry
-  for (const inv of invocations) {
-    if (!inv.skill_slug || !inv.session_id) {
-      return NextResponse.json(
-        { error: "skill_slug and session_id are required" },
-        { status: 400 }
-      );
-    }
-  }
-
-  // Batch insert
-  const records = invocations.map((inv) => ({
-    userId: user.id,
-    skillSlug: inv.skill_slug,
-    skillVersion: inv.skill_version ?? null,
-    sessionId: inv.session_id,
-    success: inv.success ?? null,
-    durationMs: inv.duration_ms ?? null,
-    metadata: inv.metadata ?? {},
-  }));
-
-  const result = await prisma.skillInvocation.createMany({ data: records });
-
-  return NextResponse.json({ count: result.count }, { status: 201 });
-}
-```
-
-**New file:** `packages/web/src/app/api/telemetry/feedback/route.ts`
-
-```typescript
-import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-
-export async function POST(req: NextRequest) {
-  const user = await authenticateRequest(req);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await req.json();
-  const { session_id, ratings } = body;
-
-  if (!session_id || !Array.isArray(ratings) || ratings.length === 0) {
-    return NextResponse.json(
-      { error: "session_id and non-empty ratings array required" },
-      { status: 400 }
-    );
-  }
-
-  // Validate ratings
-  for (const r of ratings) {
-    if (!r.skill_slug || typeof r.rating !== "number" || r.rating < 1 || r.rating > 5) {
-      return NextResponse.json(
-        { error: `Invalid rating for ${r.skill_slug}: must be 1-5` },
-        { status: 400 }
-      );
-    }
-    // Sanitize comment: strip HTML, limit length
-    if (r.comment && typeof r.comment === "string") {
-      r.comment = r.comment.replace(/<[^>]*>/g, "").slice(0, 1000);
-    }
-  }
-
-  const records = ratings.map((r: { skill_slug: string; rating: number; comment?: string }) => ({
-    userId: user.id,
-    skillSlug: r.skill_slug,
-    rating: r.rating,
-    comment: r.comment ?? null,
-    sessionId: session_id,
-  }));
-
-  const result = await prisma.skillFeedback.createMany({ data: records });
-
-  return NextResponse.json({ count: result.count }, { status: 201 });
-}
-```
+Auth pattern: Bearer token validation using `validateToken()` from `@claudefather/db/auth`, matching the Phase 01 API route pattern.
 
 **New file:** `packages/web/src/app/api/telemetry/stats/[skillSlug]/route.ts`
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { createDb } from "@claudefather/db/client";
+import { validateToken } from "@claudefather/db/auth";
+import { skillInvocations, skillFeedback } from "@claudefather/db/schema";
+import { eq, count, avg, desc, isNotNull, and, sql } from "drizzle-orm";
+
+const db = createDb(process.env.DATABASE_URL!);
 
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { skillSlug: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ skillSlug: string }> }
 ) {
-  const user = await authenticateRequest(req);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Missing Bearer token" }, { status: 401 });
+  }
+  const validated = await validateToken(db, authHeader.slice(7));
+  if (!validated) {
+    return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
   }
 
-  const { skillSlug } = params;
+  const { skillSlug } = await params;
 
-  // Parallel queries for efficiency
-  const [totalInvocations, uniqueUsers, successRate, avgDuration, recentFeedback, avgRating] =
-    await Promise.all([
-      // Total invocations (all time)
-      prisma.skillInvocation.count({ where: { skillSlug } }),
+  const [totalInvocations, uniqueUsers, recentFeedback, avgRating] = await Promise.all([
+    db.select({ count: count() })
+      .from(skillInvocations)
+      .where(eq(skillInvocations.skillSlug, skillSlug))
+      .then((r) => r[0]?.count ?? 0),
 
-      // Unique users (all time)
-      prisma.skillInvocation.groupBy({
-        by: ["userId"],
-        where: { skillSlug },
-      }).then((groups) => groups.length),
+    db.selectDistinct({ userId: skillInvocations.userId })
+      .from(skillInvocations)
+      .where(eq(skillInvocations.skillSlug, skillSlug))
+      .then((r) => r.length),
 
-      // Success rate (where success is not null)
-      prisma.skillInvocation
-        .aggregate({
-          where: { skillSlug, success: { not: null } },
-          _count: { success: true },
-        })
-        .then(async (total) => {
-          const successes = await prisma.skillInvocation.count({
-            where: { skillSlug, success: true },
-          });
-          const totalKnown = total._count.success;
-          return totalKnown > 0 ? Math.round((successes / totalKnown) * 100) : null;
-        }),
+    db.select({
+      rating: skillFeedback.rating,
+      comment: skillFeedback.comment,
+      createdAt: skillFeedback.createdAt,
+    })
+      .from(skillFeedback)
+      .where(eq(skillFeedback.skillSlug, skillSlug))
+      .orderBy(desc(skillFeedback.createdAt))
+      .limit(10),
 
-      // Average duration (where duration is not null)
-      prisma.skillInvocation.aggregate({
-        where: { skillSlug, durationMs: { not: null } },
-        _avg: { durationMs: true },
-      }).then((r) => r._avg.durationMs ? Math.round(r._avg.durationMs) : null),
-
-      // Recent feedback (last 10)
-      prisma.skillFeedback.findMany({
-        where: { skillSlug },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        select: {
-          rating: true,
-          comment: true,
-          createdAt: true,
-          // Do NOT include userId -- privacy
-        },
-      }),
-
-      // Average rating
-      prisma.skillFeedback.aggregate({
-        where: { skillSlug },
-        _avg: { rating: true },
-        _count: { rating: true },
-      }),
-    ]);
+    db.select({
+      avgRating: avg(skillFeedback.rating),
+      totalRatings: count(),
+    })
+      .from(skillFeedback)
+      .where(eq(skillFeedback.skillSlug, skillSlug))
+      .then((r) => r[0]),
+  ]);
 
   return NextResponse.json({
     skill_slug: skillSlug,
     total_invocations: totalInvocations,
     unique_users: uniqueUsers,
-    success_rate_percent: successRate,
-    avg_duration_ms: avgDuration,
-    avg_rating: avgRating._avg.rating ? Number(avgRating._avg.rating.toFixed(1)) : null,
-    total_ratings: avgRating._count.rating,
+    avg_rating: avgRating?.avgRating ? Number(Number(avgRating.avgRating).toFixed(1)) : null,
+    total_ratings: avgRating?.totalRatings ?? 0,
     recent_feedback: recentFeedback,
   });
 }
@@ -474,57 +282,58 @@ export async function GET(
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { createDb } from "@claudefather/db/client";
+import { validateToken } from "@claudefather/db/auth";
+import { skillInvocations, skillFeedback } from "@claudefather/db/schema";
+import { count, desc, gte, avg, sql } from "drizzle-orm";
 
-export async function GET(req: NextRequest) {
-  const user = await authenticateRequest(req);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+const db = createDb(process.env.DATABASE_URL!);
+
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Missing Bearer token" }, { status: 401 });
+  }
+  const validated = await validateToken(db, authHeader.slice(7));
+  if (!validated) {
+    return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
   }
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const [topSkills, totalInvocations30d, activeUsers30d, recentSyncs, lowestRated] =
-    await Promise.all([
-      // Top 10 skills by invocation count (last 30 days)
-      prisma.skillInvocation.groupBy({
-        by: ["skillSlug"],
-        where: { invokedAt: { gte: thirtyDaysAgo } },
-        _count: { id: true },
-        orderBy: { _count: { id: "desc" } },
-        take: 10,
-      }),
+  const [topSkills, totalInvocations30d, activeUsers30d, lowestRated] = await Promise.all([
+    db.select({
+      skillSlug: skillInvocations.skillSlug,
+      invocationCount: count(),
+    })
+      .from(skillInvocations)
+      .where(gte(skillInvocations.invokedAt, thirtyDaysAgo))
+      .groupBy(skillInvocations.skillSlug)
+      .orderBy(desc(count()))
+      .limit(10),
 
-      // Total invocations last 30 days
-      prisma.skillInvocation.count({
-        where: { invokedAt: { gte: thirtyDaysAgo } },
-      }),
+    db.select({ count: count() })
+      .from(skillInvocations)
+      .where(gte(skillInvocations.invokedAt, thirtyDaysAgo))
+      .then((r) => r[0]?.count ?? 0),
 
-      // Active users last 30 days
-      prisma.skillInvocation.groupBy({
-        by: ["userId"],
-        where: { invokedAt: { gte: thirtyDaysAgo } },
-      }).then((groups) => groups.length),
+    db.selectDistinct({ userId: skillInvocations.userId })
+      .from(skillInvocations)
+      .where(gte(skillInvocations.invokedAt, thirtyDaysAgo))
+      .then((r) => r.length),
 
-      // Recent sync events (last 10)
-      prisma.syncEvent.findMany({
-        orderBy: { syncedAt: "desc" },
-        take: 10,
-        include: { user: { select: { id: true } } },
-      }),
-
-      // Skills with lowest average rating (minimum 3 ratings)
-      prisma.$queryRaw`
-        SELECT skill_slug, AVG(rating) as avg_rating, COUNT(*) as rating_count
-        FROM skill_feedback
-        GROUP BY skill_slug
-        HAVING COUNT(*) >= 3
-        ORDER BY avg_rating ASC
-        LIMIT 5
-      `,
-    ]);
+    db.select({
+      skillSlug: skillFeedback.skillSlug,
+      avgRating: avg(skillFeedback.rating),
+      ratingCount: count(),
+    })
+      .from(skillFeedback)
+      .groupBy(skillFeedback.skillSlug)
+      .having(sql`count(*) >= 3`)
+      .orderBy(avg(skillFeedback.rating))
+      .limit(5),
+  ]);
 
   return NextResponse.json({
     period: "30d",
@@ -532,18 +341,14 @@ export async function GET(req: NextRequest) {
     active_users: activeUsers30d,
     top_skills: topSkills.map((s) => ({
       skill_slug: s.skillSlug,
-      invocation_count: s._count.id,
-    })),
-    recent_syncs: recentSyncs.map((s) => ({
-      synced_at: s.syncedAt,
-      skills_updated: s.skillsUpdated.length,
-      skills_added: s.skillsAdded.length,
-      skills_removed: s.skillsRemoved.length,
+      invocation_count: s.invocationCount,
     })),
     lowest_rated: lowestRated,
   });
 }
 ```
+
+**Removed from plan:** `POST /api/telemetry/invocation` and `POST /api/telemetry/feedback` write endpoints. The MCP tools (`claudefather_log_invocation`, `claudefather_session_feedback`) handle all write operations directly to the database. No need for duplicate write paths since only Claude Code clients submit telemetry.
 
 ### Step 4: PostToolUse Hook for Automatic Invocation Detection
 
@@ -863,35 +668,21 @@ Note: `claudefather_sync` and `claudefather_check_updates` are Phase 01 tools. I
 4. **Comment sanitization** -- HTML tags stripped, length capped at 1000 characters
 5. **DB failure** -- mock DB insert to reject, verify error message returned (not thrown)
 
-### API Endpoint Tests
-
-**New file:** `packages/web/src/app/api/telemetry/__tests__/invocation.test.ts`
-
-1. **Unauthenticated request** -- 401 response
-2. **Single invocation** -- valid body, verify DB insert
-3. **Batch invocations** -- array body, verify batch insert
-4. **Missing required fields** -- 400 response
-5. **Verify no extra fields stored** -- metadata JSONB is passed through but no prompt/code content
-
-**New file:** `packages/web/src/app/api/telemetry/__tests__/feedback.test.ts`
-
-1. **Unauthenticated request** -- 401 response
-2. **Valid feedback** -- verify DB insert with correct user_id
-3. **Rating out of range** -- 400 response
-4. **Comment with HTML** -- verify HTML stripped in response
-5. **Empty ratings array** -- 400 response
+### API Endpoint Tests (Read-Only)
 
 **New file:** `packages/web/src/app/api/telemetry/__tests__/stats.test.ts`
 
-1. **Returns correct aggregations** -- seed DB, verify counts, averages, unique users
-2. **Empty skill** -- no invocations, returns zeros/nulls
-3. **Privacy** -- verify userId is NOT included in feedback response
+1. **Unauthenticated request** -- 401 response
+2. **Returns correct aggregations** -- seed DB, verify counts, averages, unique users
+3. **Empty skill** -- no invocations, returns zeros/nulls
+4. **Privacy** -- verify userId is NOT included in feedback response
 
 **New file:** `packages/web/src/app/api/telemetry/__tests__/overview.test.ts`
 
-1. **Returns top skills** -- seed DB with varied invocation counts
-2. **30-day window** -- old invocations excluded from counts
-3. **Active users count** -- deduplicated by userId
+1. **Unauthenticated request** -- 401 response
+2. **Returns top skills** -- seed DB with varied invocation counts
+3. **30-day window** -- old invocations excluded from counts
+4. **Active users count** -- deduplicated by userId
 
 ### Hook Tests
 
@@ -934,11 +725,11 @@ Add under `[Unreleased]`:
 
 ```markdown
 ### Added
-- **Usage telemetry schema** — Three new database tables: `skill_invocations` (per-invocation logging), `skill_feedback` (end-of-session ratings), and `sync_events` (sync tracking). Indexed for Workshop and Dashboard queries.
+- **Usage telemetry schema** — Two new Drizzle tables: `skill_invocations` (per-invocation logging) and `skill_feedback` (end-of-session ratings). Indexed for Workshop and Dashboard queries. `sync_events` deferred to Phase 03.
 - **`claudefather_log_invocation` MCP tool** — Fire-and-forget skill invocation logging. Called by the PostToolUse hook or explicitly by skills that want to report duration/metadata.
 - **`claudefather_session_feedback` MCP tool** — End-of-session skill ratings (1-5) with optional comments.
 - **PostToolUse telemetry hook** — `posttooluse-telemetry.sh` automatically detects Skill tool invocations and logs them to a session-local JSONL file. Zero-touch for skill authors — no SKILL.md changes needed.
-- **Telemetry API endpoints** — POST `/api/telemetry/invocation` (batch-friendly), POST `/api/telemetry/feedback`, GET `/api/telemetry/stats/:skillSlug`, GET `/api/telemetry/overview`.
+- **Telemetry API endpoints (read-only)** — GET `/api/telemetry/stats/:skillSlug`, GET `/api/telemetry/overview`. Write operations handled exclusively by MCP tools.
 - **Claudefather Platform permission category** — New opt-in category in `recommended-permissions.json` for MCP tool auto-approval.
 
 ### Changed
@@ -963,30 +754,28 @@ No changes needed in this phase. The MCP server and platform features are docume
 | Skill invocation with no tool_response | success defaults to null |
 | Malformed hook input (missing fields) | jq returns "skip"; hook exits 0 silently |
 | Session crash (no handoff) | Telemetry JSONL stays in /tmp; data lost unless a future session reads orphan files |
-| Feedback comment with SQL injection attempt | Prisma parameterized queries prevent injection; HTML stripped by API |
+| Feedback comment with SQL injection attempt | Drizzle parameterized queries prevent injection; HTML stripped by MCP tool |
 | Rating value manipulation (negative, >5) | Schema validation rejects at API layer; zod rejects at MCP tool layer |
 | High-frequency invocations (rate abuse) | No rate limiting in Phase 02; consider rate limiting in Phase 04 or Phase 05 |
 
 ### Performance Considerations
 
 - **PostToolUse hook latency:** < 10ms (single jq call + file append). No network I/O.
-- **API endpoint latency:** Batch insert via `createMany` -- single DB round trip even for 50+ invocations.
-- **Stats endpoint:** Six parallel Prisma queries. For a team of 20 users, table sizes will be small (thousands of rows). No query optimization needed until hundreds of thousands of rows.
+- **MCP tool latency:** Drizzle `db.insert().values()` -- single DB round trip even for 50+ invocations.
+- **Stats endpoint:** Four parallel Drizzle queries. For a team of 20 users, table sizes will be small (thousands of rows). No query optimization needed until hundreds of thousands of rows.
 - **JSONL cleanup:** Telemetry files in `/tmp` are cleaned by OS temp file cleanup. No manual retention policy needed.
 
 ---
 
 ## Verification Checklist
 
-- [ ] Migration creates `skill_invocations`, `sync_events`, and `skill_feedback` tables
-- [ ] Prisma schema updated with models and User relations
+- [ ] Drizzle schema adds `skill_invocations` and `skill_feedback` tables (sync_events deferred to Phase 03)
+- [ ] Migration generated via `drizzle-kit generate`
 - [ ] `claudefather_log_invocation` MCP tool registered and returns immediately
 - [ ] `claudefather_session_feedback` MCP tool registered and awaits response
-- [ ] POST `/api/telemetry/invocation` accepts single and batch payloads
-- [ ] POST `/api/telemetry/feedback` validates ratings 1-5, sanitizes comments
-- [ ] GET `/api/telemetry/stats/:skillSlug` returns correct aggregations
-- [ ] GET `/api/telemetry/overview` returns 30-day window stats
-- [ ] All endpoints return 401 for unauthenticated requests
+- [ ] GET `/api/telemetry/stats/:skillSlug` returns correct aggregations (Drizzle queries)
+- [ ] GET `/api/telemetry/overview` returns 30-day window stats (Drizzle queries)
+- [ ] Both read endpoints return 401 for unauthenticated requests (Bearer token validation)
 - [ ] `posttooluse-telemetry.sh` logs Skill invocations to JSONL
 - [ ] `posttooluse-telemetry.sh` ignores non-Skill tool calls
 - [ ] `posttooluse-telemetry.sh` exits cleanly when jq is missing
