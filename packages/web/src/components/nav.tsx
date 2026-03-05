@@ -11,6 +11,14 @@ export async function Nav() {
           claudefather
         </a>
         <div className="flex items-center gap-4">
+          {(session as any).isAdmin && (
+            <a
+              href="/admin"
+              className="font-mono text-xs text-cyan-400 hover:text-cyan-300"
+            >
+              Admin
+            </a>
+          )}
           <span className="text-gray-500 text-sm">
             {session.user?.name || session.user?.email}
           </span>
