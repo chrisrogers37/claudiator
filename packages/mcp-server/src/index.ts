@@ -5,7 +5,7 @@ import express from "express";
 import { createServer } from "./server.js";
 import { validateToken } from "@claudefather/db/auth";
 import { createDb } from "@claudefather/db/client";
-import { users } from "@claudefather/db/schema";
+import { users, admins } from "@claudefather/db/schema";
 import { eq } from "drizzle-orm";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -49,7 +49,6 @@ app.all("/mcp", async (req, res) => {
     .select({
       id: users.id,
       githubUsername: users.githubUsername,
-      role: users.role,
     })
     .from(users)
     .where(eq(users.id, tokenResult.userId));
@@ -58,6 +57,13 @@ app.all("/mcp", async (req, res) => {
     res.status(401).json({ error: "User not found" });
     return;
   }
+
+  // Check admin status
+  const [adminRecord] = await db
+    .select({ id: admins.id })
+    .from(admins)
+    .where(eq(admins.userId, user.id));
+  const isAdmin = !!adminRecord;
 
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
@@ -80,7 +86,7 @@ app.all("/mcp", async (req, res) => {
     };
 
     const mcpServer = createServer({
-      user: { id: user.id, githubUsername: user.githubUsername, role: user.role },
+      user: { id: user.id, githubUsername: user.githubUsername, isAdmin },
       databaseUrl: DATABASE_URL!,
     });
     await mcpServer.connect(transport);

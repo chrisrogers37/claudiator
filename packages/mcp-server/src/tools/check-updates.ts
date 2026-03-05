@@ -1,6 +1,11 @@
 import type { DbClient } from "../lib/db.js";
-import { skills, skillVersions, userSkillPins } from "@claudefather/db/schema";
-import { eq, and, notInArray, inArray } from "drizzle-orm";
+import {
+  skills,
+  skillVersions,
+  userSkillPins,
+  userInstalledVersions,
+} from "@claudefather/db/schema";
+import { eq, and } from "drizzle-orm";
 
 interface InstalledSkill {
   slug: string;
@@ -38,6 +43,30 @@ export async function checkUpdates(
         },
       ],
     };
+  }
+
+  // Upsert installed version records for version health tracking
+  for (const s of args.installed) {
+    await db
+      .insert(userInstalledVersions)
+      .values({
+        userId: user.id,
+        skillSlug: s.slug,
+        installedVersion: s.version,
+      })
+      .onConflictDoUpdate({
+        target: [userInstalledVersions.userId, userInstalledVersions.skillSlug],
+        set: {
+          installedVersion: s.version,
+          updatedAt: new Date(),
+        },
+      })
+      .catch((err: Error) => {
+        console.error(
+          "[claudefather] installed version upsert error:",
+          err.message
+        );
+      });
   }
 
   const installedSlugs = args.installed.map((s) => s.slug);

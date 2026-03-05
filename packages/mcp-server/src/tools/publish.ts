@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skills, skillVersions } from "@claudefather/db/schema";
+import { skills, skillVersions, admins, activityEvents } from "@claudefather/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const publishSchema = z.object({
@@ -43,11 +43,11 @@ function bumpVersion(
 
 export async function publish(
   db: DbClient,
-  user: { id: string; role: string },
+  user: { id: string; isAdmin: boolean },
   args: z.infer<typeof publishSchema>
 ): Promise<{ content: { type: "text"; text: string }[] }> {
   // Admin check
-  if (user.role !== "admin") {
+  if (!user.isAdmin) {
     return {
       content: [
         {
@@ -160,6 +160,22 @@ export async function publish(
     .returning({
       version: skillVersions.version,
       publishedAt: skillVersions.publishedAt,
+    });
+
+  // Log publish activity event
+  await db
+    .insert(activityEvents)
+    .values({
+      userId: user.id,
+      eventType: "publish",
+      details: {
+        slug: args.skill_slug,
+        version: created.version,
+        previous_version: currentLatest?.version ?? null,
+      },
+    })
+    .catch((err: Error) => {
+      console.error("[claudefather] publish event logging error:", err.message);
     });
 
   return {

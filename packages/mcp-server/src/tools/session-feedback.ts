@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skillFeedback } from "@claudefather/db/schema";
+import { skillFeedback, activityEvents } from "@claudefather/db/schema";
 
 export const sessionFeedbackSchema = z.object({
   session_id: z
@@ -35,6 +35,23 @@ export async function sessionFeedback(
 
   try {
     await db.insert(skillFeedback).values(records);
+
+    // Log feedback activity events (fire-and-forget)
+    const feedbackEvents = records.map((r) => ({
+      userId: user.id,
+      eventType: "feedback" as const,
+      details: {
+        skillSlug: r.skillSlug,
+        rating: r.rating,
+        sessionId: r.sessionId,
+      },
+    }));
+    db.insert(activityEvents)
+      .values(feedbackEvents)
+      .catch((err: Error) => {
+        console.error("[claudefather] feedback event logging error:", err.message);
+      });
+
     return {
       content: [{
         type: "text" as const,

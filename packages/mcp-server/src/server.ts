@@ -12,7 +12,7 @@ import { unpin, unpinSchema } from "./tools/unpin.js";
 import { publish, publishSchema } from "./tools/publish.js";
 
 interface ServerConfig {
-  user: { id: string; githubUsername: string; role: string };
+  user: { id: string; githubUsername: string; isAdmin: boolean };
   databaseUrl: string;
 }
 

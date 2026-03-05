@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { validateToken } from "@claudefather/db/auth";
 import { createDb } from "@claudefather/db/client";
-import { users, apiTokens } from "@claudefather/db/schema";
+import { users, apiTokens, admins } from "@claudefather/db/schema";
 import { eq } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -35,10 +35,15 @@ export async function GET(request: Request) {
     .from(apiTokens)
     .where(eq(apiTokens.id, validated.tokenId));
 
+  const [adminRecord] = await db
+    .select({ id: admins.id })
+    .from(admins)
+    .where(eq(admins.userId, user.id));
+
   return NextResponse.json({
     githubUsername: user.githubUsername,
     displayName: user.displayName,
-    role: user.role,
+    role: adminRecord ? "admin" : "member",
     tokenName: tokenRecord?.name || "unknown",
     tokenExpiresAt: tokenRecord?.expiresAt?.toISOString() || null,
   });

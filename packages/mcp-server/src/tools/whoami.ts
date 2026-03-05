@@ -1,9 +1,9 @@
 export async function whoami(
-  user: { id: string; githubUsername: string; role: string }
+  user: { id: string; githubUsername: string; isAdmin: boolean }
 ): Promise<{ content: { type: "text"; text: string }[] }> {
   const lines = [
     `GitHub: @${user.githubUsername}`,
-    `Role: ${user.role}`,
+    `Role: ${user.isAdmin ? "admin" : "member"}`,
     `User ID: ${user.id}`,
   ];
 
