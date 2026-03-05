@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { rotateToken } from "@/lib/tokens";
+import { createDb } from "@claudefather/db/client";
+import { activityEvents } from "@claudefather/db/schema";
 
 // POST /api/tokens/:id/rotate — revoke old token, generate new one
 export async function POST(
@@ -20,6 +22,18 @@ export async function POST(
       { status: 404 }
     );
   }
+
+  // Log token_rotate activity event (fire-and-forget)
+  const db = createDb(process.env.DATABASE_URL!);
+  db.insert(activityEvents)
+    .values({
+      userId: (session as any).userId,
+      eventType: "token_rotate",
+      details: { tokenId: id },
+    })
+    .catch((err: Error) => {
+      console.error("[claudefather] token_rotate event error:", err.message);
+    });
 
   return NextResponse.json(result, { status: 201 });
 }

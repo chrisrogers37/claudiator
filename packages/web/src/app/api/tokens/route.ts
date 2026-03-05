@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateToken } from "@/lib/tokens";
 import { createDb } from "@claudefather/db/client";
-import { apiTokens } from "@claudefather/db/schema";
+import { apiTokens, activityEvents } from "@claudefather/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -64,6 +64,17 @@ export async function POST(request: Request) {
     name,
     expiresInDays
   );
+
+  // Log token_generate activity event (fire-and-forget)
+  db.insert(activityEvents)
+    .values({
+      userId: (session as any).userId,
+      eventType: "token_generate",
+      details: { tokenName: name },
+    })
+    .catch((err: Error) => {
+      console.error("[claudefather] token_generate event error:", err.message);
+    });
 
   return NextResponse.json(result, { status: 201 });
 }
