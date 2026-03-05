@@ -1,11 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createDbClient } from "./lib/db.js";
-import { syncSkills } from "./tools/sync.js";
+import { syncSkills, syncSchema } from "./tools/sync.js";
 import { checkUpdates } from "./tools/check-updates.js";
 import { whoami } from "./tools/whoami.js";
 import { logInvocation, logInvocationSchema } from "./tools/log-invocation.js";
 import { sessionFeedback, sessionFeedbackSchema } from "./tools/session-feedback.js";
+import { rollback, rollbackSchema } from "./tools/rollback.js";
+import { pin, pinSchema } from "./tools/pin.js";
+import { unpin, unpinSchema } from "./tools/unpin.js";
+import { publish, publishSchema } from "./tools/publish.js";
 
 interface ServerConfig {
   user: { id: string; githubUsername: string; role: string };
@@ -26,23 +30,10 @@ export function createServer(config: ServerConfig): McpServer {
     {
       title: "Sync Skills from Registry",
       description:
-        "Fetches latest skills from the claudefather registry. Returns skill content " +
-        "that Claude Code should write to ~/.claude/skills/. " +
-        "Skills are loaded by Claude Code at session start from the local filesystem.",
-      inputSchema: z.object({
-        dryRun: z
-          .boolean()
-          .optional()
-          .describe(
-            "If true, shows what would change without returning file content. Default: false."
-          ),
-        skills: z
-          .array(z.string())
-          .optional()
-          .describe(
-            "Specific skill slugs to sync. If omitted, syncs all skills."
-          ),
-      }),
+        "Fetches specific skill versions from the claudefather registry. " +
+        "Returns skill content that Claude Code should write to ~/.claude/skills/. " +
+        "Logs the sync event for audit trail.",
+      inputSchema: syncSchema,
     },
     async (args) => syncSkills(db, config.user, args)
   );
@@ -53,8 +44,8 @@ export function createServer(config: ServerConfig): McpServer {
     {
       title: "Check for Skill Updates",
       description:
-        "Compares your installed skill versions against the registry. " +
-        "Pass your installed skills with their versions to see what's outdated.",
+        "Compares installed skill versions against the registry. " +
+        "Returns structured JSON with updates, new_skills, removed_skills, pinned_skills, and up_to_date categories.",
       inputSchema: z.object({
         installed: z
           .array(
@@ -103,6 +94,55 @@ export function createServer(config: ServerConfig): McpServer {
       inputSchema: sessionFeedbackSchema,
     },
     async (args) => sessionFeedback(db, config.user, args)
+  );
+
+  // ─── claudefather_rollback ────────────────────────────────────────────────
+  server.registerTool(
+    "claudefather_rollback",
+    {
+      title: "Rollback Skill Version",
+      description:
+        "Fetch a specific previous version of a skill from the registry. " +
+        "Returns the version's content for Claude Code to write to disk.",
+      inputSchema: rollbackSchema,
+    },
+    async (args) => rollback(db, config.user, args)
+  );
+
+  // ─── claudefather_pin ────────────────────────────────────────────────────
+  server.registerTool(
+    "claudefather_pin",
+    {
+      title: "Pin Skill Version",
+      description:
+        "Pin a skill to a specific version. Pinned skills are skipped during sync.",
+      inputSchema: pinSchema,
+    },
+    async (args) => pin(db, config.user, args)
+  );
+
+  // ─── claudefather_unpin ──────────────────────────────────────────────────
+  server.registerTool(
+    "claudefather_unpin",
+    {
+      title: "Unpin Skill Version",
+      description:
+        "Remove version pin from a skill, resuming tracking of latest.",
+      inputSchema: unpinSchema,
+    },
+    async (args) => unpin(db, config.user, args)
+  );
+
+  // ─── claudefather_publish ────────────────────────────────────────────────
+  server.registerTool(
+    "claudefather_publish",
+    {
+      title: "Publish Skill Version",
+      description:
+        "Publish a new version of a skill to the registry. Admin-only — requires admin role.",
+      inputSchema: publishSchema,
+    },
+    async (args) => publish(db, config.user, args)
   );
 
   return server;

@@ -149,6 +149,26 @@ export const skillInvocations = pgTable(
   ]
 );
 
+// ─── Sync Events ──────────────────────────────────────────────────────────
+
+export const syncEvents = pgTable(
+  "sync_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    eventType: text("event_type", {
+      enum: ["sync", "rollback", "pin", "unpin"],
+    }).notNull(),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_sync_events_user_created").on(table.userId, table.createdAt),
+  ]
+);
+
 // ─── Skill Feedback ────────────────────────────────────────────────────────
 
 export const skillFeedback = pgTable(

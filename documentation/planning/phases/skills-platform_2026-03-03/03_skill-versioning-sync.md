@@ -1,11 +1,14 @@
 # Phase 03: Skill Versioning & Sync Protocol
 
+**Status:** 🔧 IN PROGRESS
+**Started:** 2026-03-04
+
 **PR Title:** add skill versioning, MCP-backed sync, rollback, and version pinning
 **Risk Level:** High
 **Estimated Effort:** High (~3-5 days)
-**Files Modified:** 2 (`global/commands/claudefather-sync.md`, `global/recommended-permissions.json`)
-**Files Created:** 3 (`global/skills/claudefather-sync/SKILL.md`, `global/skills/claudefather-sync/references/sync-protocol.md`, `global/skills/claudefather-sync/recommended-permissions.json`)
-**Files Deleted:** 1 (`global/commands/claudefather-sync.md` — migrated to skill, see Step 1)
+**Files Modified:** 3 (`packages/mcp-server/src/tools/check-updates.ts`, `packages/mcp-server/src/tools/sync.ts`, `global/recommended-permissions.json`)
+**Files Created:** 7 (`global/skills/claudefather-sync/SKILL.md`, `global/skills/claudefather-sync/references/sync-protocol.md`, `packages/mcp-server/src/tools/rollback.ts`, `packages/mcp-server/src/tools/pin.ts`, `packages/mcp-server/src/tools/unpin.ts`, `packages/mcp-server/src/tools/publish.ts`, `packages/db/src/schema.ts` — syncEvents table added)
+**Files Deleted:** 0 (legacy command only exists in claudefather repo, not this repo)
 
 ---
 
@@ -29,7 +32,7 @@ This phase replaces the file-copy sync with an MCP-backed protocol that introduc
 
 ## Dependencies
 
-- **Depends on:** Phase 01 (Registry & MCP Server). This phase requires the `skills` table, `skill_versions` table, `user_skill_pins` table, `sync_events` table, and the Railway-hosted MCP server with authentication. Phase 03 cannot begin until Phase 01's database schema and MCP server are deployed.
+- **Depends on:** Phase 01 (Registry & MCP Server). This phase requires the `skills` table, `skill_versions` table, `user_skill_pins` table, and the Railway-hosted MCP server with authentication. Phase 03 cannot begin until Phase 01's database schema and MCP server are deployed. (The `sync_events` table is created IN this phase, not a Phase 01 dependency.)
 - **Can run in parallel with:** Phase 02 (Telemetry & Feedback). Phase 02 touches `invocations` and `feedback` tables; Phase 03 touches `skill_versions`, `user_skill_pins`, and `sync_events` tables. No table overlap, no file overlap.
 - **Unlocks:** Phase 04 (Workshop UI). The Workshop needs version history from `skill_versions` to display diffs, changelogs, and rollback options in the web UI.
 
@@ -58,11 +61,11 @@ allowed-tools:
   - "Bash(mkdir *)"
   - "Bash(cp *)"
   - "Bash(chmod *)"
-  - "mcp__claudefather__check_updates"
-  - "mcp__claudefather__sync_skills"
-  - "mcp__claudefather__rollback"
-  - "mcp__claudefather__pin"
-  - "mcp__claudefather__unpin"
+  - "mcp__claudefather__claudefather_check_updates"
+  - "mcp__claudefather__claudefather_sync"
+  - "mcp__claudefather__claudefather_rollback"
+  - "mcp__claudefather__claudefather_pin"
+  - "mcp__claudefather__claudefather_unpin"
   - "Read(*)"
   - "Write(*)"
   - "Glob(*)"
@@ -72,28 +75,11 @@ allowed-tools:
 
 The Markdown body of SKILL.md follows below in Step 3.
 
-**Delete:** `global/commands/claudefather-sync.md` — this file is superseded by the new skill. The `/claudefather-migrate` skill (already exists at `global/skills/claudefather-migrate/SKILL.md`) handles cleanup of legacy command files during sync. No changes needed to the migrate skill -- it already detects commands superseded by same-name skills.
+**Delete:** N/A — `global/commands/claudefather-sync.md` only exists in the original claudefather repo, not in the-claudefather. No file to delete.
 
-**Update:** `global/recommended-permissions.json` -- add a new `mcp-claudefather` permission category:
+**Update:** `global/recommended-permissions.json` — the `claudefather-mcp` category already exists from Phase 02. Add the new tool permissions for rollback, pin, unpin, and publish. The actual MCP permission naming convention is `mcp__claudefather__claudefather_<tool_name>` (double claudefather prefix — the first is the MCP server name, the second is the tool name prefix).
 
-```json
-{
-  "id": "mcp-claudefather",
-  "name": "Claudefather MCP Tools",
-  "description": "MCP tools for skill sync, versioning, rollback, and pinning. Requires claudefather MCP server URL configured in settings.json.",
-  "default": false,
-  "permissions": [
-    "mcp__claudefather__check_updates",
-    "mcp__claudefather__sync_skills",
-    "mcp__claudefather__rollback",
-    "mcp__claudefather__pin",
-    "mcp__claudefather__unpin",
-    "mcp__claudefather__publish"
-  ]
-}
-```
-
-This category is `default: false` because it requires the MCP server URL to be configured first (Phase 01). Users who set up their MCP connection will be offered these permissions during their next sync or setup.
+**Tool naming decision (Challenge Round):** Enhance the existing `claudefather_sync` tool rather than creating a new `claudefather_sync` tool. The existing tool is extended with version-aware input and sync event logging.
 
 ### Step 2: Design the Version File Convention
 
@@ -125,7 +111,7 @@ Check for skill updates from the claudefather registry and apply approved change
 ## Mode Detection
 
 Check if the `claudefather` MCP server is configured:
-1. Look for `mcp__claudefather__check_updates` in available tools
+1. Look for `mcp__claudefather__claudefather_check_updates` in available tools
 2. If available → MCP MODE (Steps 1-7 below)
 3. If not available → FALLBACK MODE (see Fallback section at bottom)
 
@@ -269,7 +255,7 @@ Print: `Backed up current files to $BACKUP_DIR`
 
 ### Step 6: Apply Approved Changes
 
-Call the `claudefather_sync_skills` MCP tool with the list of approved skill slugs and their target versions.
+Call the `claudefather_sync` MCP tool with the list of approved skill slugs and their target versions.
 
 The MCP tool:
 1. Fetches the full content for each approved skill version from the `skill_versions` table
@@ -447,15 +433,20 @@ Output: JSON object with keys: updates, new_skills, removed_skills, pinned_skill
 (See Step 2 of the sync flow for the full response schema)
 ```
 
-**Note:** The input schema matches the existing Phase 01 implementation. Phase 03 extends the output to include pinned_skills, new_skills, and removed_skills categories (Phase 01 only returns basic update info).
+**Note:** The input schema matches the existing Phase 01 implementation. Phase 03 rewrites the output from plain text to structured JSON with `updates`, `new_skills`, `removed_skills`, `pinned_skills`, `up_to_date` categories (Phase 01 only returns basic text). The JSON is returned in the MCP text content field — Claude Code parses it fine.
 
-**Tool: `claudefather_sync_skills`**
+**Challenge Round decision:** Full rewrite of check-updates.ts to return structured JSON instead of text.
+
+**Tool: `claudefather_sync`** (already exists from Phase 01 — enhance input schema)
 
 ```
-Name: claudefather_sync_skills
+Name: claudefather_sync
 Description: Fetch full content for specified skill versions from the registry. Logs the sync event.
 
-Input Schema:
+Current Input Schema (Phase 01):
+{ dryRun?: boolean, skills?: string[] }
+
+Enhanced Input Schema (Phase 03):
 {
   "type": "object",
   "properties": {
@@ -477,6 +468,10 @@ Input Schema:
 
 Output: JSON object with key "synced" containing array of skill objects with slug, version, and files map.
 For "remove" actions, the tool logs the removal but does NOT delete local files (the skill handles deletion).
+
+Note: The existing Phase 01 interface (dryRun, string[] skills) is replaced with the version-aware format.
+The actual schema uses separate content (text) + references (jsonb) columns — the tool assembles
+the files map at read time (as the existing sync.ts already does).
 ```
 
 **Tool: `claudefather_rollback`**
@@ -498,7 +493,7 @@ Input Schema:
   "required": ["skill_slug", "target_version"]
 }
 
-Output: JSON object with slug, version, files map (same format as sync_skills), and previous_version field.
+Output: JSON object with slug, version, files map (same format as claudefather_sync response), and previous_version field.
 Logs rollback event to sync_events table.
 ```
 
@@ -591,16 +586,19 @@ Creates new record in skill_versions with is_latest=true, sets previous latest t
 |--------|------|-------------|
 | `id` | UUID | Primary key |
 | `skill_id` | UUID | FK to `skills` table |
-| `version` | VARCHAR(20) | Semver string (e.g., "1.3.0") |
-| `files` | JSONB | Map of relative path to content (e.g., `{"SKILL.md": "...", "references/foo.md": "..."}`) |
+| `version` | TEXT | Semver string (e.g., "1.3.0") |
+| `content` | TEXT | Full SKILL.md text including frontmatter |
+| `references` | JSONB | Map of reference file paths to content (e.g., `{"references/foo.md": "..."}`) |
 | `changelog` | TEXT | Human-readable changelog entry |
 | `is_latest` | BOOLEAN | True for the current version, false for all others |
 | `published_by` | UUID | FK to `users` table (the admin who published) |
-| `created_at` | TIMESTAMP | When this version was published |
+| `published_at` | TIMESTAMP | When this version was published |
+
+**Note:** The `content` + `references` columns are assembled into a `files` map at read time by the MCP tool (SKILL.md content + references entries). The `publish` tool accepts a `files` map and splits it into these two columns on write.
 
 **Unique constraint:** `(skill_id, version)` -- cannot have duplicate versions for the same skill.
 
-**Index:** `skill_id WHERE is_latest = true` -- fast lookup of current version per skill.
+**Index:** `(skill_id, is_latest)` -- fast lookup of current version per skill.
 
 **Table: `user_skill_pins`** (Phase 01 — exists)
 
@@ -630,18 +628,7 @@ Creates new record in skill_versions with is_latest=true, sets previous latest t
 
 ### Step 7: Update `/claudefather-setup` to Seed Version Files
 
-After `/claudefather-setup` installs skills (Step 4), it should write `.version` files for each installed skill. This seeds the version tracking for users on their first install.
-
-**Add to Step 4 of `global/skills/claudefather-setup/SKILL.md`** (currently `.claude/commands/claudefather-setup.md` -- the setup command must also learn about version files, but modifying it is a Phase 03 concern, not Phase 01):
-
-After writing each skill's SKILL.md:
-1. Check if the MCP server is configured (look for `mcp__claudefather__check_updates` tool)
-2. If configured: call `claudefather_check_updates` with `{"installed_versions": {}}` to get the latest versions for all skills, then write each `.version` file
-3. If not configured: write `0.0.0` to each `.version` file as a placeholder
-
-This step is optional and degrades gracefully -- if no `.version` files are written during setup, the first MCP sync will treat all skills as version `0.0.0` and offer updates.
-
-**Note:** This change to `claudefather-setup` is part of Phase 03's PR, not Phase 01's. Phase 01 only creates the database schema and MCP server. Phase 03 modifies the client-side tools (setup and sync) to use the MCP.
+**SKIPPED (Challenge Round decision):** `claudefather-setup` does not exist in the-claudefather repo and is not needed. The first MCP sync treats missing `.version` files as `0.0.0` and offers updates for all skills, which seeds the version files automatically. This step degrades gracefully with no action required.
 
 ---
 
@@ -663,9 +650,9 @@ These tests verify the MCP tool implementations in the server codebase (Phase 01
 
 6. **`check_updates` — removed skill from registry:** Installed manifest has a skill not in registry. Expect it in `removed_skills`.
 
-7. **`sync_skills` — basic update:** Sync `review-pr` to `1.3.0`. Verify response includes full file content. Verify `sync_events` record created.
+7. **`claudefather_sync` — basic update:** Sync `review-pr` to `1.3.0`. Verify response includes full file content. Verify `sync_events` record created.
 
-8. **`sync_skills` — multi-file skill:** Sync a skill with `references/` files. Verify all files included in response.
+8. **`claudefather_sync` — multi-file skill:** Sync a skill with `references/` files. Verify all files included in response.
 
 9. **`rollback` — to previous:** Rollback `review-pr` with `target_version: "previous"`. Verify returns previous version content. Verify `sync_events` logged as rollback.
 
@@ -736,7 +723,7 @@ Add under `## [Unreleased]`:
 
 ```markdown
 ### Changed
-- **`/claudefather-sync` migrated to skill format** — moved from `global/commands/claudefather-sync.md` to `global/skills/claudefather-sync/SKILL.md`. Legacy command file removed. The `/claudefather-migrate` skill handles cleanup on user machines.
+- **`/claudefather-sync` created as skill** — new skill at `global/skills/claudefather-sync/SKILL.md` with MCP-backed sync and legacy fallback via `references/sync-protocol.md`.
 - **MCP-backed sync protocol** — `/claudefather-sync` now uses the claudefather MCP server for update checking, skill content delivery, and sync event logging. Interactive approval UX preserved. Falls back to git-based sync when MCP server is not configured.
 
 ### Added
@@ -745,7 +732,7 @@ Add under `## [Unreleased]`:
 - **Version pinning** — `/claudefather-sync pin <skill> [version]` freezes a skill at a specific version, skipping it during sync. `/claudefather-sync unpin <skill>` resumes tracking latest.
 - **Publishing workflow** — `claudefather_publish` MCP tool for admin to publish new skill versions with changelog entries.
 - **Sync event logging** — all sync, rollback, pin, and unpin operations logged to `sync_events` table for audit trail.
-- **MCP tools permission category** — `mcp-claudefather` category in `recommended-permissions.json` for MCP tool auto-approval.
+- **MCP tools permission category** — `claudefather-mcp` category in `recommended-permissions.json` for MCP tool auto-approval.
 ```
 
 ### README.md
@@ -795,13 +782,13 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 ### Performance Considerations
 
 - **`check_updates` call:** Single request to Railway-hosted MCP server (direct DB query). Should complete in < 2 seconds even with 34+ skills.
-- **`sync_skills` call:** Returns full file content for all approved skills in one MCP tool response. For a full sync of 34 skills, this could be 500KB-1MB of content. Acceptable for a single Streamable HTTP response.
+- **`claudefather_sync` call:** Returns full file content for all approved skills in one MCP tool response. For a full sync of 34 skills, this could be 500KB-1MB of content. Acceptable for a single Streamable HTTP response.
 - **Local `.version` file reads:** 34 Read tool calls. Claude Code should execute these in parallel. Total time: < 1 second.
 - **Backup `cp -r`:** Copies entire `~/.claude/skills/` directory (34 skills). At ~500KB total, this completes in < 1 second.
 
 ### Security Considerations
 
-- **API token scoping:** `check_updates`, `sync_skills`, `rollback`, `pin`, `unpin` require read-scoped tokens. `publish` requires admin-scoped tokens.
+- **API token scoping:** `claudefather_check_updates`, `claudefather_sync`, `claudefather_rollback`, `claudefather_pin`, `claudefather_unpin` require read-scoped tokens. `claudefather_publish` requires admin-scoped tokens.
 - **Content integrity:** The MCP server returns skill content from the `skill_versions` table. No user input is interpolated into SKILL.md content. No injection risk.
 - **Fallback mode security:** The git-based fallback uses the same local-filesystem approach as today. No new attack surface.
 
@@ -811,10 +798,10 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 
 - [ ] `global/skills/claudefather-sync/SKILL.md` exists with correct YAML frontmatter
 - [ ] `global/skills/claudefather-sync/references/sync-protocol.md` contains the full legacy sync procedure
-- [ ] `global/commands/claudefather-sync.md` is deleted (migrated to skill)
-- [ ] `global/recommended-permissions.json` contains `mcp-claudefather` category
-- [ ] MCP mode: `check_updates` tool called with correct installed versions manifest
-- [ ] MCP mode: `sync_skills` tool called with only user-approved skills
+- [ ] N/A — no legacy command file exists in the-claudefather repo
+- [ ] `global/recommended-permissions.json` updated with new tool permissions (rollback, pin, unpin, publish)
+- [ ] MCP mode: `claudefather_check_updates` tool returns structured JSON with updates/new/removed/pinned/up_to_date
+- [ ] MCP mode: `claudefather_sync` tool called with version-aware input and only user-approved skills
 - [ ] MCP mode: `.version` files written after each skill update
 - [ ] MCP mode: `sync_events` record created for each sync
 - [ ] Fallback mode: breadcrumb file read, legacy sync protocol followed
@@ -842,7 +829,7 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 
 4. **Do NOT store `.version` files in the git repo.** Version files are local-only state reflecting what version each user has installed. They are generated during sync, not distributed.
 
-5. **Do NOT make the `mcp-claudefather` permission category `default: true`.** It requires the MCP server URL to be configured. Users without MCP setup would see permission errors for tools that do not exist.
+5. **Do NOT make the `claudefather-mcp` permission category `default: true`.** It requires the MCP server URL to be configured. Users without MCP setup would see permission errors for tools that do not exist.
 
 6. **Do NOT build a version history UI.** That is Phase 04 (Workshop). This phase only provides the MCP tools that the Workshop will later consume.
 
@@ -853,5 +840,7 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 9. **Do NOT skip the backup step.** Even with rollback support, the local filesystem backup is the safety net of last resort. Rollback depends on the MCP server being reachable; backups do not.
 
 10. **Do NOT use `Bash(git *)` in the MCP sync flow.** The MCP mode does not interact with git at all -- it fetches content from the registry via MCP tools. Git commands are only needed in fallback mode.
+
+11. **FUTURE: Settings/permissions management in MCP mode.** The legacy sync includes Steps 6.5-6.7 for permissions, settings defaults, and sandbox checks. MCP mode intentionally omits these (skills only, no settings). A future phase should address how permissions travel with skills — flagged during Challenge Round.
 
 ---

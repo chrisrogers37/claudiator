@@ -111,7 +111,11 @@
         "mcp__claudefather__claudefather_session_feedback",
         "mcp__claudefather__claudefather_sync",
         "mcp__claudefather__claudefather_check_updates",
-        "mcp__claudefather__claudefather_whoami"
+        "mcp__claudefather__claudefather_whoami",
+        "mcp__claudefather__claudefather_rollback",
+        "mcp__claudefather__claudefather_pin",
+        "mcp__claudefather__claudefather_unpin",
+        "mcp__claudefather__claudefather_publish"
       ]
     }
   ]
