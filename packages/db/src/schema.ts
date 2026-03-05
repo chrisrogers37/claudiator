@@ -191,3 +191,60 @@ export const skillFeedback = pgTable(
     index("idx_feedback_session_id").on(table.sessionId),
   ]
 );
+
+// ─── Learnings (Intelligence Pipeline Display Layer) ────────────────────────
+
+export const learnings = pgTable(
+  "learnings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    summary: text("summary").notNull(),
+    fullContent: text("full_content"),
+    sourceUrl: text("source_url"),
+    sourceType: text("source_type", {
+      enum: ["blog", "docs", "changelog", "community"],
+    }).notNull(),
+    relevanceTags: text("relevance_tags").array().default([]),
+    distilledAt: timestamp("distilled_at", { withTimezone: true }).notNull().defaultNow(),
+    status: text("status", {
+      enum: ["new", "reviewed", "applied", "dismissed"],
+    })
+      .notNull()
+      .default("new"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_learnings_status").on(table.status),
+    index("idx_learnings_distilled_at").on(table.distilledAt),
+    index("idx_learnings_source_type").on(table.sourceType),
+  ]
+);
+
+// ─── Learning–Skill Links ────────────────────────────────────────────────────
+
+export const learningSkillLinks = pgTable(
+  "learning_skill_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    learningId: uuid("learning_id")
+      .notNull()
+      .references(() => learnings.id, { onDelete: "cascade" }),
+    skillSlug: text("skill_slug").notNull(),
+    proposedChange: text("proposed_change"),
+    status: text("status", {
+      enum: ["pending", "applied", "rejected"],
+    })
+      .notNull()
+      .default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("learning_skill_links_unique").on(table.learningId, table.skillSlug),
+    index("idx_learning_skill_links_learning").on(table.learningId),
+    index("idx_learning_skill_links_skill").on(table.skillSlug),
+    index("idx_learning_skill_links_status").on(table.status),
+  ]
+);
