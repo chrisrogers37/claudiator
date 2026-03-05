@@ -1,6 +1,8 @@
 # Phase 05: Team Dashboard
 
-**Status:** Planned
+**Status:** ✅ COMPLETE
+**Started:** 2026-03-05
+**Completed:** 2026-03-05
 **PR Title:** add admin team dashboard with adoption, version health, and feedback triage views
 **Risk Level:** Medium
 **Estimated Effort:** High (~40-50 hours)
@@ -9,56 +11,57 @@
 
 ---
 
-## Implementation Corrections (added 2026-03-05)
+## Implementation Corrections (added 2026-03-05, updated 2026-03-05 challenge round)
 
-This plan was generated before Phase 01-03 implementation. The code snippets below contain pervasive type, path, and schema errors. **Do NOT copy code verbatim from this document.** Use the feature descriptions and component lists as requirements, but implement against the actual codebase. Key corrections:
+This plan was generated before Phase 01-03 implementation. The code snippets below contain pervasive type, path, and schema errors. **Do NOT copy code verbatim from this document.** Use the feature descriptions and component lists as requirements, but implement against the actual codebase.
+
+### Architectural decisions (resolved in challenge round)
+
+1. **Admin authorization: Dedicated `admins` table.** Remove `users.role` column entirely. Create `admins` table (`id uuid PK, userId uuid FK unique → users.id, grantedBy uuid FK nullable → users.id, grantedAt timestamp`). Admin check = presence in admins table. Update NextAuth session callback to set `session.isAdmin` boolean. Update MCP publish tool to check admins table instead of `user.role`.
+
+2. **Activity events: Single table via rename.** Rename `syncEvents` → `activityEvents` via `ALTER TABLE sync_events RENAME TO activity_events`. Expand event types to: `sync`, `rollback`, `pin`, `unpin`, `feedback`, `token_generate`, `token_rotate`, `publish`, `version_nudge`, `feedback_status_change`. Update ALL references in `packages/db/src/schema.ts` and `packages/mcp-server/src/` (imports, tool handlers). No backwards compat needed — no live system.
+
+3. **Version tracking: `userInstalledVersions` table + MCP change.** Create `userInstalledVersions` table (`id uuid PK, userId uuid FK, skillSlug text, installedVersion text, updatedAt timestamp`). Modify `check_updates` in MCP server to upsert installed version records when called. This populates version health data.
+
+4. **Feedback schema extension.** Add `status` (text, default `'new'`, values: `new|acknowledged|in_progress|resolved`) and `resolvedByVersionId` (uuid FK → skillVersions.id, nullable) columns to `skillFeedback` table.
+
+5. **Server Components for reads, API routes for mutations only.** All 5 admin views (team, skills, versions, feedback, activity) are async Server Components that query the DB directly — NO `/api/admin/*` GET routes. Only 2 API routes needed: `POST /api/admin/feedback/[id]/status` and `POST /api/admin/versions/nudge`. This is idiomatic Next.js 15 App Router.
+
+6. **Cross-package activity event wiring.** Wire `activityEvents` inserts into MCP server tools (sync, publish, session_feedback) AND web routes (token generate/rotate, feedback status change, nudge). Do this in Phase 05, not deferred.
+
+7. **Nudge is record-only.** The nudge action creates activity events to record admin intent. No delivery mechanism exists yet — future enhancement could surface nudges in `check_updates` MCP responses.
+
+8. **Add `lucide-react` dependency** to `packages/web/`.
 
 ### Path corrections
 - All `src/app/` paths → `packages/web/src/app/`
 - All `src/lib/` paths → `packages/web/src/lib/`
 - All `src/components/` paths → `packages/web/src/components/`
 - All `src/middleware.ts` → `packages/web/src/middleware.ts`
-- Schema location: NOT `src/lib/db/schema.ts` → `packages/db/src/schema.ts`
+- Schema location: `packages/db/src/schema.ts` (NOT `src/lib/db/schema.ts`)
 
 ### Schema type corrections
-- All IDs are `uuid`, not `serial` or `integer`. Every `id: serial('id')` → `id: uuid('id').defaultRandom().primaryKey()`
+- All IDs are `uuid`, not `serial`/`integer`. Every `id: serial('id')` → `id: uuid('id').defaultRandom().primaryKey()`
 - All FK references (`userId`, `skillId`) are `uuid`, not `integer`
 - No `parseInt()` on IDs — they're strings (uuid)
 - `timestamp('...', { withTimezone: true })` not `timestamptz('...')`
 
 ### Column name corrections
-- `users.role` values are `'admin' | 'member'` (not `'user' | 'admin'`)
-- `users.lastSyncAt` → does NOT exist. Derive from `syncEvents` table via subquery
+- `users.role` → REMOVED. Admin status determined by presence in `admins` table
+- `users.lastSyncAt` → does NOT exist. Derive from `activityEvents` table via subquery
 - `users.lastActiveAt` → does NOT exist. Derive from `skillInvocations` table via subquery
 - `users.tokenGeneratedAt` → does NOT exist. Derive from `apiTokens` table via subquery
-- `skillFeedback.skillSlug` (text), NOT `skillFeedback.skillId` (there is no integer FK)
+- `skillFeedback.skillSlug` (text), NOT `skillFeedback.skillId` (no integer FK)
 - `skillFeedback.skillVersion` (text), NOT a version FK
 - `skillInvocations.skillSlug` (text), NOT `skillInvocations.skillId`
 - `skillInvocations.invokedAt`, NOT `skillInvocations.createdAt`
 - `skills.slug` is the natural key (text, unique). No `skills.latestVersion` column — derive via `skillVersions` where `isLatest = true`
 
-### Table corrections
-- `userSkillVersions` → does NOT exist. Create a new `userInstalledVersions` table to track which version each user has installed (populated during `check_updates` calls)
-- `activityEvents` table: instead of creating new, rename/extend existing `syncEvents` table to `activityEvents` with additional event types (`feedback`, `token_generate`, `token_rotate`, `publish`, `version_nudge`, `feedback_status_change`). Requires a DB migration.
-- `skillFeedback` needs two new columns: `status` (text, default 'new') and `resolvedByVersionId` (uuid FK to skillVersions.id, nullable)
-
-### Auth pattern corrections
-- NOT `getServerSession()` or `getSession(request)` → use `auth()` from `packages/web/src/lib/auth.ts`
-- Session user ID accessed via `(session as any).userId` (uuid string)
-- Session role accessed via `(session as any).role`
-
 ### Styling corrections
-- The app uses a **dark terminal aesthetic**, NOT light theme
-- NOT `bg-white`, `bg-gray-50`, `text-gray-900` → use `bg-[#0d1117]`, `bg-[#121a2a]`, `text-gray-200`, `border-gray-800`
-- Match the existing dashboard page's dark styling conventions
+- **Dark terminal aesthetic**, NOT light theme
+- NOT `bg-white`, `bg-gray-50`, `text-gray-900` → use `bg-[#0d1117]`, `bg-[#161b22]`, `text-gray-200`, `border-gray-800`
 - Accent colors: green-400 (success), amber-400 (warning), red-400 (errors), cyan-400 (info/links)
-
-### Dependency corrections
-- `lucide-react` needs to be installed (not present in current package.json)
-
-### Architectural decisions (resolved)
-- **Version tracking**: Create `userInstalledVersions` table populated when users call `check_updates`. This enables the version health view.
-- **Activity events**: Rename existing `syncEvents` → `activityEvents` via migration, extend with new event types. One table for all platform events.
+- Cards: `bg-[#161b22]` with `border-gray-800`, `font-mono` for technical content
 
 ---
 
