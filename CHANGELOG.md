@@ -12,8 +12,17 @@
 - **Claudefather Platform permission category** — New opt-in category in `recommended-permissions.json` for MCP tool auto-approval.
 - **Shared telemetry instructions** — `global/skills/_shared/telemetry-instructions.md` reference for skills that want to report duration/metadata.
 
+- **`sync_events` audit trail table** — Drizzle table for logging sync, rollback, pin, and unpin operations with JSONB details.
+- **`claudefather_rollback` MCP tool** — Fetch a previous version of a skill from the registry for rollback. Supports specific version or "previous" shorthand.
+- **`claudefather_pin` MCP tool** — Pin a skill to a specific version. Pinned skills are skipped during sync.
+- **`claudefather_unpin` MCP tool** — Remove version pin from a skill, resuming tracking of latest.
+- **`claudefather_publish` MCP tool** — Admin-only tool to publish new skill versions with changelog entries. Supports explicit version or auto-bump (patch/minor/major).
+- **`/claudefather-sync` skill** — New skill at `global/skills/claudefather-sync/SKILL.md` with MCP-backed sync protocol and legacy git-based fallback via `references/sync-protocol.md`.
+
 ### Changed
 
+- **`claudefather_check_updates` enhanced** — Now returns structured JSON with `updates`, `new_skills`, `removed_skills`, `pinned_skills`, and `up_to_date` categories instead of plain text.
+- **`claudefather_sync` enhanced** — Now accepts version-aware input `{skills: [{slug, version, action}]}` and logs sync events to the audit trail.
 - **`/session-handoff` telemetry integration** — New Steps 3.5 (submit telemetry) and 3.6 (collect feedback) between changelog and handoff file writing. Telemetry submission is silent; feedback collection is one-prompt opt-in.
 
 ---
