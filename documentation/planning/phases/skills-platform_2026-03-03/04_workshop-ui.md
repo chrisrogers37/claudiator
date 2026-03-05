@@ -1,11 +1,29 @@
 # Phase 04: Workshop UI — Skill Editing, Diffing, Feedback, and Learnings Browser
 
-**PR Title:** add workshop UI with skill editor, version diffing, feedback dashboard, and learnings browser
+**Status:** 🔧 IN PROGRESS
+**Started:** 2026-03-05
+
 **Risk Level:** High
 **Estimated Effort:** High (~3-4 weeks)
-**Files Created:** 42
-**Files Modified:** 4 (existing Phase 01 files: `packages/web/src/app/layout.tsx`, `packages/db/src/schema.ts`, `packages/web/next.config.ts`)
-**Files Deleted:** 0
+
+---
+
+## Challenge Decisions (2026-03-05)
+
+Split into 4 sub-phases as separate PRs:
+
+| Sub-phase | Scope | Files |
+|-----------|-------|-------|
+| **4a** | Schema + Shared Components + Skill Browser (`/workshop`) + Navigation + GET /api/skills | ~15 |
+| **4b** | Skill Editor (Monaco) + Custom Diff Viewer + Version History + AI Edit + mutation APIs | ~14 |
+| **4c** | Feedback Dashboard (per-skill + cross-skill triage) + GET /api/skills/:slug/feedback | ~7 |
+| **4d** | Learnings Browser (list + detail + proposed changes) + learnings APIs | ~9 |
+
+**Dependency changes:**
+- DROP: `diff2html` → custom React diff components with Tailwind
+- DROP: `recharts` → CSS bar chart (~20 lines Tailwind)
+- DROP: Color tokens file → use existing Tailwind palette (`bg-[#0d1117]`, `bg-[#161b22]`, etc.)
+- KEEP: Monaco Editor, all 11 API routes, AI Edit endpoint, full Learnings UI, both publish surfaces (MCP + web)
 
 ---
 
