@@ -8,6 +8,21 @@
 
 ---
 
+## Implementation Corrections (added 2026-03-05)
+
+This plan was generated before Phase 01-03 implementation. Code snippets contain schema and path errors. **Do NOT copy code verbatim.** Use feature descriptions as requirements, implement against the actual codebase.
+
+### Key corrections (same pattern as Phase 04/05)
+- All IDs must be `uuid`, not `SERIAL` or `INTEGER` — match `packages/db/src/schema.ts` conventions
+- Use Drizzle ORM table definitions in `packages/db/src/schema.ts`, not raw SQL migration files
+- All file paths under `packages/web/src/` not `services/` or `src/`
+- Use `timestamp('...', { withTimezone: true })` not `TIMESTAMPTZ`
+- `learnings` and `learning_skill_links` tables are created by Phase 04 — verify their actual schema before depending on them
+- Auth: use `auth()` from NextAuth, not custom session functions
+- `activityEvents` table (renamed from `syncEvents` per Phase 05 decision) replaces any separate audit log needs
+
+---
+
 ## Context
 
 The platform currently has no automated mechanism for staying current with Claude Code, MCP, and AI ecosystem changes. The maintainer manually reads docs, blogs, and changelogs, then translates findings into skill improvements. This phase automates the monitoring and distillation steps, feeding actionable learnings into the Workshop UI (Phase 04) where the maintainer reviews and approves proposed skill changes. The key design principle is that no learning ever modifies a skill autonomously -- everything is staged for human review.

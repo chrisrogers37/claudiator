@@ -4,8 +4,44 @@
 **Risk Level:** High
 **Estimated Effort:** High (~3-4 weeks)
 **Files Created:** 42
-**Files Modified:** 4 (existing Phase 01 files: `app/layout.tsx`, `lib/db/schema.ts`, `lib/db/migrations/`, `next.config.ts`)
+**Files Modified:** 4 (existing Phase 01 files: `packages/web/src/app/layout.tsx`, `packages/db/src/schema.ts`, `packages/web/next.config.ts`)
 **Files Deleted:** 0
+
+---
+
+## Implementation Corrections (added 2026-03-05)
+
+This plan was generated before Phase 01-03 implementation. The code snippets below contain pervasive type, path, and schema errors. **Do NOT copy code verbatim from this document.** Use the feature descriptions and component lists as requirements, but implement against the actual codebase. Key corrections:
+
+### Path corrections
+- All `web/` paths → `packages/web/`
+- All `web/app/` → `packages/web/src/app/`
+- All `web/components/` → `packages/web/src/components/`
+- All `web/lib/` → `packages/web/src/lib/`
+- Schema: NOT `web/lib/db/schema.ts` → `packages/db/src/schema.ts`
+- Migrations: NOT `web/lib/db/migrations/` → use Drizzle kit from `packages/db/`
+
+### Schema corrections (same as Phase 05 — see that doc for full list)
+- All IDs are `uuid`, not `serial` or `integer`
+- `timestamp('...', { withTimezone: true })` not `timestamptz('...')`
+- `skillVersions` columns: `skillId` (uuid FK), `version` (text semver), `content` (text), `references` (jsonb), `changelog` (text), `publishedBy` (uuid), `publishedAt` (timestamp), `isLatest` (boolean) — NOT `version_number`, `is_draft`, `is_current`, `skill_slug`
+- `skills` table: NO `current_version_id` column. Latest version derived via `skillVersions.isLatest`
+- `skillInvocations`: uses `skillSlug` (text) not skill FK, `invokedAt` not `timestamp`
+- `skillFeedback`: uses `skillSlug` (text) not skill FK, `rating` is `smallint`
+- Category values are short slugs: `'deployment' | 'database' | 'code-review' | 'planning' | 'design' | 'workflow' | 'utilities' | 'configuration'` — NOT long names like `'Deployment & Infrastructure'`
+
+### Auth pattern corrections
+- Use `auth()` from `packages/web/src/lib/auth.ts`, not `getServerSession()`
+- Session: `(session as any).userId` (uuid string), `(session as any).role`
+
+### Styling notes
+- The plan's color tokens (Step 3.1) and dark aesthetic are CORRECT and match the existing app
+- Existing app already uses similar patterns (bg-[#0d1117], text-gray-200, border-gray-800)
+
+### Assumed Phase Foundation (corrected)
+- Phase 03 delivers: `skillVersions` table with `id` (uuid), `skillId` (uuid FK), `version` (text semver), `content` (text — full SKILL.md), `references` (jsonb — reference files map), `changelog` (text), `publishedBy` (uuid FK), `publishedAt` (timestamp), `isLatest` (boolean)
+- Phase 02 delivers: `skillInvocations` table with `skillSlug` (text), `invokedAt` (timestamp), `userId` (uuid), `sessionId` (text), `durationMs` (integer), `success` (boolean). `skillFeedback` table with `skillSlug` (text), `userId` (uuid), `rating` (smallint 1-5), `comment` (text), `sessionId` (text)
+- Phase 01 delivers: `skills` table with `id` (uuid), `slug` (text unique), `name` (text), `description` (text), `category` (text enum), `isUserInvocable` (boolean), `createdBy` (uuid FK)
 
 ---
 
@@ -40,22 +76,11 @@ The "workshop" concept — collaborative human + AI skill refinement — is impl
 
 ## Detailed Implementation Plan
 
-### Assumed Phase 01 Foundation
+### Assumed Phase Foundation
 
-This plan assumes Phase 01 delivers:
-- Next.js 14+ app with App Router at `web/` (or `app/` — the plan uses `web/` as the project root for the Next.js app)
-- PostgreSQL database with Drizzle ORM
-- GitHub OAuth authentication via NextAuth.js
-- Base layout with navigation, dark terminal aesthetic
-- API route infrastructure with authentication middleware
-
-This plan assumes Phase 03 delivers:
-- `skill_versions` table: `id`, `skill_slug`, `version_number`, `content` (full SKILL.md text), `changelog`, `published_at`, `published_by`, `is_draft`, `is_current`
-- `skills` table: `slug`, `name`, `description`, `category`, `current_version_id`, `created_at`, `updated_at`
-
-This plan assumes Phase 02 delivers:
-- `invocations` table with `skill_slug`, `timestamp`, `user_id`, `session_id`, `duration_ms`, `status`
-- `feedback` table with `id`, `skill_slug`, `user_id`, `rating` (1-5), `comment`, `created_at`, `session_id`
+> **STALE — see "Implementation Corrections" section above for actual schema.**
+> The column names and types listed below are WRONG. They were written before implementation.
+> Refer to `packages/db/src/schema.ts` for the actual schema.
 
 ### Step 1: Database Schema Extensions — Learnings Tables
 

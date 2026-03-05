@@ -4,8 +4,61 @@
 **PR Title:** add admin team dashboard with adoption, version health, and feedback triage views
 **Risk Level:** Medium
 **Estimated Effort:** High (~40-50 hours)
-**Files Modified:** 3 (`src/app/layout.tsx`, `src/lib/db/schema.ts`, `src/middleware.ts`)
+**Files Modified:** 3 (`packages/web/src/app/layout.tsx`, `packages/db/src/schema.ts`, `packages/web/src/middleware.ts`)
 **Files Created:** 28
+
+---
+
+## Implementation Corrections (added 2026-03-05)
+
+This plan was generated before Phase 01-03 implementation. The code snippets below contain pervasive type, path, and schema errors. **Do NOT copy code verbatim from this document.** Use the feature descriptions and component lists as requirements, but implement against the actual codebase. Key corrections:
+
+### Path corrections
+- All `src/app/` paths → `packages/web/src/app/`
+- All `src/lib/` paths → `packages/web/src/lib/`
+- All `src/components/` paths → `packages/web/src/components/`
+- All `src/middleware.ts` → `packages/web/src/middleware.ts`
+- Schema location: NOT `src/lib/db/schema.ts` → `packages/db/src/schema.ts`
+
+### Schema type corrections
+- All IDs are `uuid`, not `serial` or `integer`. Every `id: serial('id')` → `id: uuid('id').defaultRandom().primaryKey()`
+- All FK references (`userId`, `skillId`) are `uuid`, not `integer`
+- No `parseInt()` on IDs — they're strings (uuid)
+- `timestamp('...', { withTimezone: true })` not `timestamptz('...')`
+
+### Column name corrections
+- `users.role` values are `'admin' | 'member'` (not `'user' | 'admin'`)
+- `users.lastSyncAt` → does NOT exist. Derive from `syncEvents` table via subquery
+- `users.lastActiveAt` → does NOT exist. Derive from `skillInvocations` table via subquery
+- `users.tokenGeneratedAt` → does NOT exist. Derive from `apiTokens` table via subquery
+- `skillFeedback.skillSlug` (text), NOT `skillFeedback.skillId` (there is no integer FK)
+- `skillFeedback.skillVersion` (text), NOT a version FK
+- `skillInvocations.skillSlug` (text), NOT `skillInvocations.skillId`
+- `skillInvocations.invokedAt`, NOT `skillInvocations.createdAt`
+- `skills.slug` is the natural key (text, unique). No `skills.latestVersion` column — derive via `skillVersions` where `isLatest = true`
+
+### Table corrections
+- `userSkillVersions` → does NOT exist. Create a new `userInstalledVersions` table to track which version each user has installed (populated during `check_updates` calls)
+- `activityEvents` table: instead of creating new, rename/extend existing `syncEvents` table to `activityEvents` with additional event types (`feedback`, `token_generate`, `token_rotate`, `publish`, `version_nudge`, `feedback_status_change`). Requires a DB migration.
+- `skillFeedback` needs two new columns: `status` (text, default 'new') and `resolvedByVersionId` (uuid FK to skillVersions.id, nullable)
+
+### Auth pattern corrections
+- NOT `getServerSession()` or `getSession(request)` → use `auth()` from `packages/web/src/lib/auth.ts`
+- Session user ID accessed via `(session as any).userId` (uuid string)
+- Session role accessed via `(session as any).role`
+
+### Styling corrections
+- The app uses a **dark terminal aesthetic**, NOT light theme
+- NOT `bg-white`, `bg-gray-50`, `text-gray-900` → use `bg-[#0d1117]`, `bg-[#121a2a]`, `text-gray-200`, `border-gray-800`
+- Match the existing dashboard page's dark styling conventions
+- Accent colors: green-400 (success), amber-400 (warning), red-400 (errors), cyan-400 (info/links)
+
+### Dependency corrections
+- `lucide-react` needs to be installed (not present in current package.json)
+
+### Architectural decisions (resolved)
+- **Version tracking**: Create `userInstalledVersions` table populated when users call `check_updates`. This enables the version health view.
+- **Activity events**: Rename existing `syncEvents` → `activityEvents` via migration, extend with new event types. One table for all platform events.
 
 ---
 
@@ -21,7 +74,7 @@ This phase is scoped exclusively to read-only dashboard views and feedback statu
 
 - **Depends on Phase 01:** Next.js web app, GitHub OAuth authentication, PostgreSQL database, user table, middleware infrastructure.
 - **Depends on Phase 02:** Telemetry tables (`skill_invocations`), feedback tables (`skill_feedback`), and the MCP tools that populate them.
-- **Depends on Phase 03:** Version registry tables (`skill_versions`, `user_skill_versions`), version metadata, and the sync mechanism that records which user has which version.
+- **Depends on Phase 03:** Version registry tables (`skill_versions`, `user_skill_pins`), version metadata. Note: `user_skill_versions` does not exist — Phase 05 must create `user_installed_versions` to track per-user version data (populated via `check_updates` calls).
 - **Can run in parallel with Phase 04:** Touches different routes (`/admin/*` vs `/workshop/*`), different API endpoints, and different page components. Both phases share the same Next.js app and database schema but do not modify the same files. Coordinate only on `schema.ts` if both phases add tables.
 - **Unlocks:** Phase 06 (Intelligence Pipeline) can add a "learnings" tab to the activity feed once its data sources exist.
 
