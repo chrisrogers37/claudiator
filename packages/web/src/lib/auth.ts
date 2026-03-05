@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import { createDb } from "@claudefather/db/client";
-import { users } from "@claudefather/db/schema";
+import { users, admins } from "@claudefather/db/schema";
 import { eq } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -32,7 +32,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           displayName: profile.name as string | undefined,
           avatarUrl: profile.avatar_url as string | undefined,
           email: profile.email as string | undefined,
-          role: "member",
         });
       } else {
         await db
@@ -49,7 +48,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return true;
     },
     async session({ session, user }) {
-      // Attach internal user ID and role to session
+      // Attach internal user ID and admin status to session
       const dbUser = await db
         .select()
         .from(users)
@@ -58,7 +57,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       if (dbUser.length > 0) {
         (session as any).userId = dbUser[0].id;
-        (session as any).role = dbUser[0].role;
+
+        // Check admin status via admins table
+        const [admin] = await db
+          .select({ id: admins.id })
+          .from(admins)
+          .where(eq(admins.userId, dbUser[0].id));
+        (session as any).isAdmin = !!admin;
       }
 
       return session;
