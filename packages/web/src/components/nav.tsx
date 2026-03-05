@@ -11,6 +11,12 @@ export async function Nav() {
           claudefather
         </a>
         <div className="flex items-center gap-4">
+          <a
+            href="/workshop"
+            className="font-mono text-xs text-amber-400 hover:text-amber-300"
+          >
+            Workshop
+          </a>
           <span className="text-gray-500 text-sm">
             {session.user?.name || session.user?.email}
           </span>
