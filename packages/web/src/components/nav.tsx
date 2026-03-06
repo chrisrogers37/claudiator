@@ -17,6 +17,12 @@ export async function Nav() {
           >
             Workshop
           </a>
+          <a
+            href="/workshop/feedback"
+            className="font-mono text-xs text-gray-500 hover:text-gray-300"
+          >
+            Feedback
+          </a>
           <span className="text-gray-500 text-sm">
             {session.user?.name || session.user?.email}
           </span>
