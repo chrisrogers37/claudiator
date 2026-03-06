@@ -4,7 +4,7 @@ import {
   skills,
   skillVersions,
   userSkillPins,
-  syncEvents,
+  activityEvents,
 } from "@claudefather/db/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -71,7 +71,7 @@ export async function unpin(
 
   // Log unpin event
   await db
-    .insert(syncEvents)
+    .insert(activityEvents)
     .values({
       userId: user.id,
       eventType: "unpin",

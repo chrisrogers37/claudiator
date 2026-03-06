@@ -4,7 +4,7 @@ import {
   skills,
   skillVersions,
   userSkillPins,
-  syncEvents,
+  activityEvents,
 } from "@claudefather/db/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -81,7 +81,7 @@ export async function pin(
 
   // Log pin event
   await db
-    .insert(syncEvents)
+    .insert(activityEvents)
     .values({
       userId: user.id,
       eventType: "pin",
