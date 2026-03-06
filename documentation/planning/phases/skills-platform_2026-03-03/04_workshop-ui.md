@@ -14,16 +14,31 @@ Split into 4 sub-phases as separate PRs:
 
 | Sub-phase | Scope | Files |
 |-----------|-------|-------|
-| **4a** | Schema + Shared Components + Skill Browser (`/workshop`) + Navigation + GET /api/skills | ~15 |
-| **4b** | Skill Editor (Monaco) + Custom Diff Viewer + Version History + AI Edit + mutation APIs | ~14 |
-| **4c** | Feedback Dashboard (per-skill + cross-skill triage) + GET /api/skills/:slug/feedback | ~7 |
-| **4d** | Learnings Browser (list + detail + proposed changes) + learnings APIs | ~9 |
+| **4a** | Schema + Shared Components + Skill Browser (`/workshop`) + Navigation + GET /api/skills | ~15 | ✅ COMPLETE (PR #7) |
+| **4b** | Skill Editor (Monaco) + Custom Diff Viewer + Timeline + Version History + AI Edit + mutation APIs (draft/publish/versions/ai-edit) | ~14 | ✅ COMPLETE (PR #8) |
+| **4c** | Feedback Dashboard (per-skill + cross-skill triage) + CSS bar chart + GET /api/skills/:slug/feedback | ~7 | 📋 PENDING |
+| **4d** | Learnings Browser (list + detail + proposed changes) + learnings APIs (GET/POST) | ~9 | 📋 PENDING |
 
 **Dependency changes:**
-- DROP: `diff2html` → custom React diff components with Tailwind
-- DROP: `recharts` → CSS bar chart (~20 lines Tailwind)
+- DROP: `diff2html` → custom React diff components with Tailwind (no external CSS overrides needed)
+- DROP: `recharts` → CSS-only horizontal bar chart (~20 lines Tailwind)
 - DROP: Color tokens file → use existing Tailwind palette (`bg-[#0d1117]`, `bg-[#161b22]`, etc.)
-- KEEP: Monaco Editor, all 11 API routes, AI Edit endpoint, full Learnings UI, both publish surfaces (MCP + web)
+- KEEP: Monaco Editor, AI Edit endpoint, full Learnings UI, both publish surfaces (MCP + web)
+- KEEP: `diff` npm package (generates unified diffs between strings — used by custom diff viewer)
+- KEEP: `react-markdown` + `remark-gfm` + `rehype-highlight` (Markdown preview panel)
+
+**API route scoping per sub-phase:**
+- **4b**: GET `/api/skills/[slug]/versions`, GET `/api/skills/[slug]/versions/[version]`, PUT `/api/skills/[slug]/draft`, POST `/api/skills/[slug]/publish`, POST `/api/skills/[slug]/ai-edit`
+- **4c**: GET `/api/skills/[slug]/feedback` (the cross-skill triage page queries DB directly as a server component)
+- **4d**: GET `/api/learnings`, GET `/api/learnings/[id]`, POST `/api/learnings/[id]/apply`
+
+**Schema usage:**
+- All code implements against the ACTUAL schema in `packages/db/src/schema.ts`, not the plan's stale code snippets
+- `skillVersions` uses: `skillId` (uuid FK), `version` (text semver), `content`, `references` (jsonb), `changelog`, `publishedBy` (uuid), `publishedAt`, `isLatest` (boolean)
+- Auth uses `auth()` from `packages/web/src/lib/auth.ts`, not `getServerSession(authOptions)`
+
+**Component scoping:**
+- Timeline component is built in 4b (used for version history)
 
 ---
 
@@ -189,11 +204,9 @@ Add these dependencies to the Next.js project (`web/package.json`):
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
     "diff": "^5.2.0",
-    "diff2html": "^3.4.48",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
-    "rehype-highlight": "^7.0.0",
-    "recharts": "^2.12.0"
+    "rehype-highlight": "^7.0.0"
   },
   "devDependencies": {
     "@types/diff": "^5.2.1"
@@ -203,9 +216,12 @@ Add these dependencies to the Next.js project (`web/package.json`):
 
 **Why these libraries:**
 - `@monaco-editor/react`: VS Code's editor engine — SKILL.md files are complex Markdown+YAML; syntax highlighting and intellisense matter.
-- `diff` + `diff2html`: The `diff` npm package generates unified diffs between text strings. `diff2html` renders those diffs with syntax highlighting in unified or split view.
+- `diff`: Generates unified diffs between text strings. Used by the custom React diff viewer (no `diff2html` — we render diffs with Tailwind instead).
 - `react-markdown` + `remark-gfm` + `rehype-highlight`: Renders the Markdown preview panel. GFM support needed for tables in SKILL.md files. Code block highlighting for YAML frontmatter and bash examples.
-- `recharts`: Lightweight charting for the rating distribution bar chart. No need for a full charting suite.
+
+**Dropped:**
+- ~~`diff2html`~~ — Replaced by custom React diff components styled with Tailwind. Eliminates external CSS overrides and gives full control over the dark terminal aesthetic.
+- ~~`recharts`~~ — Replaced by CSS-only horizontal bar chart (~20 lines of Tailwind). One bar chart doesn't justify a 300KB charting library.
 
 ### Step 3: Design System — Shared Components
 
@@ -1151,17 +1167,25 @@ export async function SkillSidebar({ slug, skill }: SkillSidebarProps) {
 }
 ```
 
-### Step 6: Diff Viewer Component — `web/components/workshop/diff-viewer.tsx`
+### Step 6: Diff Viewer Component — `packages/web/src/components/workshop/diff-viewer.tsx`
+
+Custom React diff viewer styled with Tailwind. No `diff2html` dependency — we use the `diff` npm package to compute changes and render them ourselves. This gives full control over the dark terminal aesthetic without CSS override files.
 
 Shared component used by both the skill editor (draft vs published, AI proposal vs current) and the version history page (any two versions).
+
+**Implementation approach:**
+- Use `diffLines()` from the `diff` npm package to compute line-level changes
+- Render each line as a React element with Tailwind classes for add/remove/context styling
+- Support unified and split view modes via a toggle
+- No `dangerouslySetInnerHTML` — pure React rendering
+- Colors match the existing dark aesthetic: red (`rgba(255, 68, 68, 0.08)`) for removals, green (`rgba(0, 255, 65, 0.08)`) for additions, neutral background for context lines
+- Monospace font (`JetBrains Mono`), line numbers in muted color (`#5a6577`)
 
 ```tsx
 'use client';
 
 import { useState, useMemo } from 'react';
-import { createTwoFilesPatch } from 'diff';
-import { html } from 'diff2html';
-import 'diff2html/bundles/css/diff2html.min.css';
+import { diffLines, Change } from 'diff';
 
 interface DiffViewerProps {
   oldContent: string;
@@ -1175,83 +1199,52 @@ type DiffStyle = 'unified' | 'split';
 export function DiffViewer({
   oldContent, newContent, oldLabel = 'Before', newLabel = 'After',
 }: DiffViewerProps) {
-  const [style, setStyle] = useState<DiffStyle>('split');
+  const [style, setStyle] = useState<DiffStyle>('unified');
 
-  const diffHtml = useMemo(() => {
-    const patch = createTwoFilesPatch(
-      oldLabel,
-      newLabel,
-      oldContent,
-      newContent,
-      '', // old header
-      '', // new header
-      { context: 3 },
-    );
-
-    return html(patch, {
-      drawFileList: false,
-      matching: 'lines',
-      outputFormat: style === 'split' ? 'side-by-side' : 'line-by-line',
-      renderNothingWhenEmpty: false,
-    });
-  }, [oldContent, newContent, oldLabel, newLabel, style]);
+  const changes = useMemo(
+    () => diffLines(oldContent, newContent),
+    [oldContent, newContent]
+  );
 
   return (
     <div>
-      {/* Style toggle */}
-      <div className="flex items-center gap-2 p-3 border-b border-[#1e293b]">
-        <span className="text-xs font-mono" style={{ color: '#5a6577' }}>View:</span>
-        {(['unified', 'split'] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setStyle(s)}
-            className={`px-2 py-1 rounded text-xs font-mono uppercase ${
-              style === s
-                ? 'text-[#00bcd4] bg-[#00bcd4]/10'
-                : 'text-[#5a6577] hover:text-[#8892a4]'
-            }`}
-          >
-            {s}
-          </button>
-        ))}
+      {/* Style toggle + labels */}
+      <div className="flex items-center justify-between p-3 border-b border-[#1e293b]">
+        <div className="flex items-center gap-4 text-xs font-mono">
+          <span className="text-[#ff4444]">{oldLabel}</span>
+          <span className="text-[#5a6577]">→</span>
+          <span className="text-[#00ff41]">{newLabel}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono text-[#5a6577]">View:</span>
+          {(['unified', 'split'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStyle(s)}
+              className={`px-2 py-1 rounded text-xs font-mono uppercase ${
+                style === s
+                  ? 'text-[#00bcd4] bg-[#00bcd4]/10'
+                  : 'text-[#5a6577] hover:text-[#8892a4]'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Diff output */}
-      <div
-        className="diff-container"
-        dangerouslySetInnerHTML={{ __html: diffHtml }}
-      />
+      <div className="overflow-x-auto font-mono text-[13px]" style={{ backgroundColor: '#0f1520' }}>
+        {style === 'unified'
+          ? <UnifiedView changes={changes} />
+          : <SplitView changes={changes} />}
+      </div>
     </div>
   );
 }
 ```
 
-**Important:** Add CSS overrides for diff2html to match the dark terminal theme. Create `web/styles/diff-overrides.css`:
-
-```css
-/* Override diff2html colors for dark terminal aesthetic */
-.d2h-wrapper {
-  background: #0a0e17;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-}
-.d2h-file-header { display: none; }
-.d2h-code-line-ctn { background: #0f1520; color: #e0e6ed; }
-.d2h-del { background-color: rgba(255, 68, 68, 0.08); }
-.d2h-ins { background-color: rgba(0, 255, 65, 0.08); }
-.d2h-code-side-line del { background-color: rgba(255, 68, 68, 0.2); }
-.d2h-code-side-line ins { background-color: rgba(0, 255, 65, 0.2); }
-.d2h-code-line-prefix { color: #5a6577; }
-.d2h-code-side-emptyplaceholder-line { background: #0d1220; }
-.d2h-file-diff { border-color: #1e293b; }
-.d2h-diff-table { font-size: 13px; }
-.d2h-code-linenumber { color: #5a6577; background: #0d1220; border-color: #1e293b; }
-```
-
-Import this in `web/app/layout.tsx`:
-```tsx
-import '@/styles/diff-overrides.css';
-```
+The `UnifiedView` and `SplitView` are internal components that iterate over `Change[]` from the `diff` library, rendering lines with appropriate background colors and `+`/`-`/` ` prefixes. No external CSS files needed.
 
 ### Step 7: Version History Page — `/workshop/skills/:slug/history`
 
@@ -1550,58 +1543,50 @@ export default async function SkillFeedbackPage({
 }
 ```
 
-#### 8.2 Rating Distribution Chart — `web/app/workshop/skills/[slug]/feedback/components/rating-distribution.tsx`
+#### 8.2 Rating Distribution Chart — `packages/web/src/app/workshop/skills/[slug]/feedback/components/rating-distribution.tsx`
+
+CSS-only horizontal bar chart. No `recharts` dependency — ~20 lines of Tailwind.
 
 ```tsx
-'use client';
-
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-
 interface RatingDistributionProps {
   distribution: { rating: number; count: number }[];
 }
 
+const barColors = ['#ff4444', '#ff8844', '#d4a017', '#88cc44', '#00ff41'];
+
 export function RatingDistribution({ distribution }: RatingDistributionProps) {
-  // Ensure all 5 rating values are present (fill missing with 0)
   const data = [1, 2, 3, 4, 5].map((rating) => ({
-    rating: `${rating} star${rating > 1 ? 's' : ''}`,
+    rating,
     count: distribution.find((d) => d.rating === rating)?.count || 0,
   }));
-
-  const barColors = ['#ff4444', '#ff8844', '#d4a017', '#88cc44', '#00ff41'];
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
 
   return (
     <div className="rounded-lg p-4" style={{ backgroundColor: '#121a2a', border: '1px dashed #2a3a52' }}>
       <h4 className="font-mono text-xs uppercase tracking-widest mb-4" style={{ color: '#8892a4' }}>
         Rating Distribution
       </h4>
-      <div className="h-40">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ left: 60, right: 20, top: 5, bottom: 5 }}>
-            <XAxis type="number" hide />
-            <YAxis
-              type="category"
-              dataKey="rating"
-              tick={{ fill: '#8892a4', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#0a0e17',
-                border: '1px solid #1e293b',
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 12,
-                color: '#e0e6ed',
-              }}
-            />
-            <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-              {data.map((_, idx) => (
-                <Cell key={idx} fill={barColors[idx]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="space-y-2">
+        {data.map((d, idx) => (
+          <div key={d.rating} className="flex items-center gap-3">
+            <span className="font-mono text-xs w-14 text-right" style={{ color: '#8892a4' }}>
+              {d.rating} star{d.rating > 1 ? 's' : ''}
+            </span>
+            <div className="flex-1 h-5 rounded" style={{ backgroundColor: '#0d1220' }}>
+              <div
+                className="h-full rounded transition-all"
+                style={{
+                  width: `${(d.count / maxCount) * 100}%`,
+                  backgroundColor: barColors[idx],
+                  minWidth: d.count > 0 ? '4px' : '0',
+                }}
+              />
+            </div>
+            <span className="font-mono text-xs w-8" style={{ color: '#5a6577' }}>
+              {d.count}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -2074,20 +2059,19 @@ export function ProposedChangeCard({
 
 ### Step 10: API Routes
 
-All routes are in `web/app/api/` using Next.js App Router route handlers. Each route authenticates via the session (NextAuth.js from Phase 01).
+All routes are in `packages/web/src/app/api/` using Next.js App Router route handlers. Each route authenticates via `auth()` from `packages/web/src/lib/auth.ts` (NextAuth v5 from Phase 01). Routes are scoped to sub-phases as noted.
 
-#### 10.1 Skills List — `web/app/api/skills/route.ts`
+#### 10.1 Skills List — `packages/web/src/app/api/skills/route.ts` *(sub-phase 4b)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { skills } from '@/lib/db/schema';
 import { sql, asc } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const result = await db
@@ -2107,21 +2091,20 @@ export async function GET() {
 }
 ```
 
-#### 10.2 Skill Detail — `web/app/api/skills/[slug]/route.ts`
+#### 10.2 Skill Detail — `packages/web/src/app/api/skills/[slug]/route.ts` *(sub-phase 4b)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { skills, skillVersions } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function GET(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const skill = await db.query.skills.findFirst({
@@ -2144,21 +2127,20 @@ export async function GET(
 }
 ```
 
-#### 10.3 Save Draft — `web/app/api/skills/[slug]/draft/route.ts`
+#### 10.3 Save Draft — `packages/web/src/app/api/skills/[slug]/draft/route.ts` *(sub-phase 4b)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { skillVersions } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function PUT(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { content } = await request.json();
@@ -2203,21 +2185,20 @@ export async function PUT(
 }
 ```
 
-#### 10.4 Publish — `web/app/api/skills/[slug]/publish/route.ts`
+#### 10.4 Publish — `packages/web/src/app/api/skills/[slug]/publish/route.ts` *(sub-phase 4b)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { skillVersions, skills } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function POST(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
@@ -2287,13 +2268,12 @@ export async function POST(
 }
 ```
 
-#### 10.5 AI Edit — `web/app/api/skills/[slug]/ai-edit/route.ts`
+#### 10.5 AI Edit — `packages/web/src/app/api/skills/[slug]/ai-edit/route.ts` *(sub-phase 4b)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -2303,7 +2283,7 @@ export async function POST(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { content, instruction } = await request.json();
@@ -2351,21 +2331,20 @@ Rules:
 }
 ```
 
-#### 10.6 Version History — `web/app/api/skills/[slug]/versions/route.ts`
+#### 10.6 Version History — `packages/web/src/app/api/skills/[slug]/versions/route.ts` *(sub-phase 4b)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { skillVersions } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function GET(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const versions = await db.query.skillVersions.findMany({
@@ -2387,21 +2366,20 @@ export async function GET(
 }
 ```
 
-#### 10.7 Specific Version — `web/app/api/skills/[slug]/versions/[version]/route.ts`
+#### 10.7 Specific Version — `packages/web/src/app/api/skills/[slug]/versions/[version]/route.ts` *(sub-phase 4b)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { skillVersions } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function GET(
   request: Request,
   { params }: { params: { slug: string; version: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const versionNum = parseInt(params.version, 10);
@@ -2422,21 +2400,20 @@ export async function GET(
 }
 ```
 
-#### 10.8 Skill Feedback — `web/app/api/skills/[slug]/feedback/route.ts`
+#### 10.8 Skill Feedback — `packages/web/src/app/api/skills/[slug]/feedback/route.ts` *(sub-phase 4c)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { feedback } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function GET(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const entries = await db.query.feedback.findMany({
@@ -2448,18 +2425,17 @@ export async function GET(
 }
 ```
 
-#### 10.9 Learnings List — `web/app/api/learnings/route.ts`
+#### 10.9 Learnings List — `packages/web/src/app/api/learnings/route.ts` *(sub-phase 4d)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { learnings } from '@/lib/db/schema';
 import { desc } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const items = await db.query.learnings.findMany({
@@ -2470,21 +2446,20 @@ export async function GET() {
 }
 ```
 
-#### 10.10 Learning Detail — `web/app/api/learnings/[id]/route.ts`
+#### 10.10 Learning Detail — `packages/web/src/app/api/learnings/[id]/route.ts` *(sub-phase 4d)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { learnings, learningSkillLinks, skills } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const learning = await db.query.learnings.findFirst({
@@ -2508,21 +2483,20 @@ export async function GET(
 }
 ```
 
-#### 10.11 Apply Learning — `web/app/api/learnings/[id]/apply/route.ts`
+#### 10.11 Apply Learning — `packages/web/src/app/api/learnings/[id]/apply/route.ts` *(sub-phase 4d)*
 
 ```typescript
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { learningSkillLinks, learnings } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { skillSlug, action } = await request.json();
@@ -2601,9 +2575,8 @@ The exact integration depends on Phase 01's layout structure, but the items abov
 6. `web/components/ui/badge.tsx` — Status/category badges
 7. `web/components/ui/timeline.tsx` — Version history timeline
 
-**Workshop Shared (2):**
-8. `web/components/workshop/diff-viewer.tsx` — Side-by-side/unified diff component
-9. `web/styles/diff-overrides.css` — Dark theme overrides for diff2html
+**Workshop Shared (1):**
+8. `packages/web/src/components/workshop/diff-viewer.tsx` — Custom React diff viewer (unified/split, no diff2html)
 
 **Skill Browser - `/workshop` (5):**
 10. `web/app/workshop/page.tsx` — Main skill listing page
@@ -2653,11 +2626,9 @@ The exact integration depends on Phase 01's layout structure, but the items abov
 44. `web/app/api/learnings/[id]/route.ts` — GET /api/learnings/:id
 45. `web/app/api/learnings/[id]/apply/route.ts` — POST /api/learnings/:id/apply
 
-### Modified Files (4)
-1. `web/lib/db/schema.ts` — Add `learnings` and `learningSkillLinks` table definitions
-2. `web/app/layout.tsx` — Add workshop navigation items + import diff-overrides.css
-3. `web/package.json` — Add frontend dependencies (Monaco, diff, diff2html, react-markdown, recharts)
-4. `web/next.config.ts` — Add `transpilePackages: ['diff2html']` if needed for SSR compatibility
+### Modified Files (2)
+1. `packages/db/src/schema.ts` — `learnings` and `learningSkillLinks` tables *(done in 4a)*
+2. `packages/web/package.json` — Add frontend dependencies (Monaco, diff, react-markdown, remark-gfm, rehype-highlight)
 
 ---
 
@@ -2751,8 +2722,8 @@ All React components should have JSDoc comments explaining their purpose and pro
 
 | Scenario | Expected Behavior |
 |----------|------------------|
-| Identical versions compared | diff2html shows "No changes" (via `renderNothingWhenEmpty: false` we show the full content without highlights). |
-| Very large diff (1000+ changed lines) | diff2html renders all lines. May be slow in split view. Add a warning: "Large diff — consider unified view for better performance." |
+| Identical versions compared | Custom diff viewer shows "No changes" message when `diffLines()` returns a single unchanged chunk. |
+| Very large diff (1000+ changed lines) | Custom React diff viewer renders all lines. May be slow in split view. Add a warning: "Large diff — consider unified view for better performance." |
 | Binary or non-UTF8 content | SKILL.md files are always UTF-8 Markdown. No binary content expected. If encountered, diff library will show garbled output. |
 
 ### Feedback Edge Cases
@@ -2777,12 +2748,12 @@ All React components should have JSDoc comments explaining their purpose and pro
 
 - [ ] `004_learnings.sql` migration runs successfully
 - [ ] Drizzle schema matches SQL migration exactly
-- [ ] All 7 npm dependencies install without conflicts
+- [ ] All 5 npm dependencies install without conflicts (monaco, diff, react-markdown, remark-gfm, rehype-highlight)
 - [ ] Monaco Editor loads and renders SKILL.md with syntax highlighting
 - [ ] Markdown preview renders correctly with GFM tables and code blocks
-- [ ] diff2html renders diffs with dark theme overrides applied
-- [ ] Recharts bar chart renders rating distribution correctly
-- [ ] All 11 API routes return correct responses
+- [ ] Custom diff viewer renders unified and split views correctly with dark theme
+- [ ] CSS bar chart renders rating distribution correctly (no recharts)
+- [ ] All API routes for the current sub-phase return correct responses
 - [ ] All API routes return 401 for unauthenticated requests
 - [ ] Draft save creates or updates draft version correctly
 - [ ] Publish promotes draft to current and unsets previous current
