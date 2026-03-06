@@ -87,6 +87,12 @@ export async function SkillSidebar({ slug, skill }: SkillSidebarProps) {
           >
             Version History
           </Link>
+          <Link
+            href={`/workshop/skills/${slug}/feedback`}
+            className="block px-3 py-2 rounded text-sm text-cyan-400 hover:bg-[#1c2333] transition-colors"
+          >
+            Feedback ({feedbackStats.feedbackCount})
+          </Link>
         </nav>
       </Card>
 
