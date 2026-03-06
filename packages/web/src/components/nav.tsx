@@ -4,6 +4,8 @@ export async function Nav() {
   const session = await auth();
   if (!session) return null;
 
+  const role = (session as any).role;
+
   return (
     <nav className="border-b border-gray-800 bg-[#0d1117]">
       <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
@@ -29,6 +31,14 @@ export async function Nav() {
           >
             Learnings
           </a>
+          {role === "admin" && (
+            <a
+              href="/admin"
+              className="font-mono text-xs text-red-400 hover:text-red-300"
+            >
+              Admin
+            </a>
+          )}
           <span className="text-gray-500 text-sm">
             {session.user?.name || session.user?.email}
           </span>
