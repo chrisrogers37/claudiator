@@ -1,11 +1,27 @@
 # Phase 05: Team Dashboard
 
-**Status:** Planned
+**Status:** IN PROGRESS (sub-phased into 5a/5b/5c)
 **PR Title:** add admin team dashboard with adoption, version health, and feedback triage views
 **Risk Level:** Medium
 **Estimated Effort:** High (~40-50 hours)
 **Files Modified:** 3 (`packages/web/src/app/layout.tsx`, `packages/db/src/schema.ts`, `packages/web/src/middleware.ts`)
 **Files Created:** 28
+
+### Sub-Phase Progress
+
+| Sub-Phase | Scope | Status |
+|-----------|-------|--------|
+| **5a** | Schema (syncEvents renamed to activityEvents, skillFeedback status, userInstalledVersions) + admin layout + nav link + lucide-react | COMPLETE |
+| **5b** | Team overview (/admin/team) + skill adoption (/admin/skills) + stat-card component | COMPLETE |
+| **5c** | Version health (/admin/versions) + feedback triage (/admin/feedback) + activity feed (/admin/activity) + mutation APIs | COMPLETE |
+
+### Implementation Notes (added 2026-03-06)
+
+- All admin pages are server components with direct DB queries (no client-side SPA patterns)
+- Client components used only for interactive mutations (NudgeButton, FeedbackStatusSelect)
+- Link-based filters/sorts matching workshop patterns (not useState)
+- `syncEvents` table renamed to `activityEvents` via SQL migration with extended event types
+- Dark terminal theme consistent with rest of app
 
 ---
 
@@ -28,7 +44,7 @@ This plan was generated before Phase 01-03 implementation. The code snippets bel
 
 ### Column name corrections
 - `users.role` values are `'admin' | 'member'` (not `'user' | 'admin'`)
-- `users.lastSyncAt` → does NOT exist. Derive from `syncEvents` table via subquery
+- `users.lastSyncAt` → does NOT exist. Derive from `activityEvents` table via subquery (WHERE event_type = 'sync')
 - `users.lastActiveAt` → does NOT exist. Derive from `skillInvocations` table via subquery
 - `users.tokenGeneratedAt` → does NOT exist. Derive from `apiTokens` table via subquery
 - `skillFeedback.skillSlug` (text), NOT `skillFeedback.skillId` (there is no integer FK)
@@ -39,7 +55,7 @@ This plan was generated before Phase 01-03 implementation. The code snippets bel
 
 ### Table corrections
 - `userSkillVersions` → does NOT exist. Create a new `userInstalledVersions` table to track which version each user has installed (populated during `check_updates` calls)
-- `activityEvents` table: instead of creating new, rename/extend existing `syncEvents` table to `activityEvents` with additional event types (`feedback`, `token_generate`, `token_rotate`, `publish`, `version_nudge`, `feedback_status_change`). Requires a DB migration.
+- `activityEvents` table: renamed from `syncEvents` in sub-phase 5a. Extended with event types: `feedback`, `token_generate`, `token_rotate`, `publish`, `version_nudge`, `feedback_status_change`. Added `skillSlug` column. Migration: `packages/db/drizzle/0001_phase05_schema.sql`.
 - `skillFeedback` needs two new columns: `status` (text, default 'new') and `resolvedByVersionId` (uuid FK to skillVersions.id, nullable)
 
 ### Auth pattern corrections
@@ -58,7 +74,7 @@ This plan was generated before Phase 01-03 implementation. The code snippets bel
 
 ### Architectural decisions (resolved)
 - **Version tracking**: Create `userInstalledVersions` table populated when users call `check_updates`. This enables the version health view.
-- **Activity events**: Rename existing `syncEvents` → `activityEvents` via migration, extend with new event types. One table for all platform events.
+- **Activity events**: Renamed `syncEvents` → `activityEvents` via migration (0001_phase05_schema.sql). Extended with new event types. One table for all platform events. All MCP server tools updated.
 
 ---
 

@@ -149,23 +149,36 @@ export const skillInvocations = pgTable(
   ]
 );
 
-// ─── Sync Events ──────────────────────────────────────────────────────────
+// ─── Activity Events ──────────────────────────────────────────────────────
 
-export const syncEvents = pgTable(
-  "sync_events",
+export const activityEvents = pgTable(
+  "activity_events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     eventType: text("event_type", {
-      enum: ["sync", "rollback", "pin", "unpin"],
+      enum: [
+        "sync",
+        "rollback",
+        "pin",
+        "unpin",
+        "feedback",
+        "token_generate",
+        "token_rotate",
+        "publish",
+        "version_nudge",
+        "feedback_status_change",
+      ],
     }).notNull(),
+    skillSlug: text("skill_slug"),
     details: jsonb("details").$type<Record<string, unknown>>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("idx_sync_events_user_created").on(table.userId, table.createdAt),
+    index("idx_activity_events_user_created").on(table.userId, table.createdAt),
+    index("idx_activity_events_event_type").on(table.eventType),
   ]
 );
 
@@ -183,12 +196,45 @@ export const skillFeedback = pgTable(
     rating: smallint("rating").notNull(), // 1-5
     comment: text("comment"),
     sessionId: text("session_id").notNull(),
+    status: text("status", {
+      enum: ["new", "acknowledged", "in_progress", "resolved"],
+    })
+      .notNull()
+      .default("new"),
+    resolvedByVersionId: uuid("resolved_by_version_id").references(
+      () => skillVersions.id,
+      { onDelete: "set null" }
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index("idx_feedback_skill_slug").on(table.skillSlug),
     index("idx_feedback_user_id").on(table.userId),
     index("idx_feedback_session_id").on(table.sessionId),
+    index("idx_feedback_status").on(table.status),
+  ]
+);
+
+// ─── User Installed Versions ────────────────────────────────────────────────
+
+export const userInstalledVersions = pgTable(
+  "user_installed_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    skillSlug: text("skill_slug").notNull(),
+    installedVersion: text("installed_version").notNull(),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_installed_versions_user_skill_idx").on(
+      table.userId,
+      table.skillSlug
+    ),
   ]
 );
 

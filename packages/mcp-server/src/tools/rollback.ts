@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skills, skillVersions, syncEvents } from "@claudefather/db/schema";
+import { skills, skillVersions, activityEvents } from "@claudefather/db/schema";
 import { eq, and, desc, lt } from "drizzle-orm";
 
 export const rollbackSchema = z.object({
@@ -138,7 +138,7 @@ export async function rollback(
 
   // Log the rollback event
   await db
-    .insert(syncEvents)
+    .insert(activityEvents)
     .values({
       userId: user.id,
       eventType: "rollback",

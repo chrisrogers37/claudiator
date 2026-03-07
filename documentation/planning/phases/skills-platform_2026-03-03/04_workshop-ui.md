@@ -1,6 +1,6 @@
 # Phase 04: Workshop UI — Skill Editing, Diffing, Feedback, and Learnings Browser
 
-**Status:** 🔧 IN PROGRESS (final sub-phase 4d)
+**Status:** COMPLETE
 **Started:** 2026-03-05
 
 **Risk Level:** High
@@ -12,12 +12,12 @@
 
 Split into 4 sub-phases as separate PRs:
 
-| Sub-phase | Scope | Files |
-|-----------|-------|-------|
-| **4a** | Schema + Shared Components + Skill Browser (`/workshop`) + Navigation + GET /api/skills | ~15 | ✅ COMPLETE (PR #7) |
-| **4b** | Skill Editor (Monaco) + Custom Diff Viewer + Timeline + Version History + AI Edit + mutation APIs (draft/publish/versions/ai-edit) | ~14 | ✅ COMPLETE (PR #8) |
-| **4c** | Feedback Dashboard (per-skill + cross-skill triage) + CSS bar chart + GET /api/skills/:slug/feedback | ~7 | ✅ COMPLETE (PR #9) |
-| **4d** | Learnings Browser (list + detail + proposed changes) + learnings APIs (GET/POST) | ~9 | ✅ COMPLETE (PR #10) |
+| Sub-phase | Scope | Files | Status |
+|-----------|-------|-------|--------|
+| **4a** | Schema + Shared Components + Skill Browser (`/workshop`) + Navigation + GET /api/skills | ~15 | COMPLETE (PR #7) |
+| **4b** | Skill Editor (Monaco) + Custom Diff Viewer + Timeline + Version History + AI Edit + mutation APIs (draft/publish/versions/ai-edit) | ~14 | COMPLETE (PR #8) |
+| **4c** | Feedback Dashboard (per-skill + cross-skill triage) + CSS bar chart + GET /api/skills/:slug/feedback | ~7 | COMPLETE (PR #9) |
+| **4d** | Learnings Browser (list + detail + proposed changes) + learnings APIs (GET/POST) | ~9 | COMPLETE (PR #10) |
 
 **Dependency changes:**
 - DROP: `diff2html` → custom React diff components with Tailwind (no external CSS overrides needed)
