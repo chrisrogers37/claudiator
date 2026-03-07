@@ -8,18 +8,55 @@
 
 ---
 
-## Implementation Corrections (added 2026-03-05)
+## Implementation Status: COMPLETE (2026-03-07)
+
+**Branch:** `implement/intelligence-pipeline`
+**Worktree:** `/Users/chris/Projects/the-claudefather-phase06`
+
+### Sub-Phase Summary
+
+| Sub-Phase | Scope | Status |
+|-----------|-------|--------|
+| 6a: Schema | sourceConfigs + sourceSnapshots tables, migration + seed data | COMPLETE |
+| 6b: Scraper | Fetchers, change detection (SHA-256), scraper orchestration | COMPLETE |
+| 6c: Distillation + Cron | Claude Haiku distillation, system prompt, scrape cron endpoint | COMPLETE |
+| 6d: Quality Control | Stale learning dismissal, snapshot pruning, maintenance cron | COMPLETE |
+
+### Implementation Corrections (added 2026-03-05)
 
 This plan was generated before Phase 01-03 implementation. Code snippets contain schema and path errors. **Do NOT copy code verbatim.** Use feature descriptions as requirements, implement against the actual codebase.
 
-### Key corrections (same pattern as Phase 04/05)
-- All IDs must be `uuid`, not `SERIAL` or `INTEGER` — match `packages/db/src/schema.ts` conventions
-- Use Drizzle ORM table definitions in `packages/db/src/schema.ts`, not raw SQL migration files
-- All file paths under `packages/web/src/` not `services/` or `src/`
-- Use `timestamp('...', { withTimezone: true })` not `TIMESTAMPTZ`
-- `learnings` and `learning_skill_links` tables are created by Phase 04 — verify their actual schema before depending on them
-- Auth: use `auth()` from NextAuth, not custom session functions
-- `activityEvents` table (renamed from `syncEvents` per Phase 05 decision) replaces any separate audit log needs
+### Key corrections applied during implementation
+- All IDs are `uuid`, not `SERIAL` or `INTEGER` — matches `packages/db/src/schema.ts` conventions
+- Used Drizzle ORM table definitions in `packages/db/src/schema.ts`, not raw SQL migration files
+- All files under `packages/web/src/lib/pipeline/` not `services/`
+- Used `timestamp('...', { withTimezone: true })` not `TIMESTAMPTZ`
+- `learnings` and `learning_skill_links` tables already exist from Phase 04
+- Auth: used `auth()` from NextAuth, not custom session functions
+- `activityEvents` table (renamed from `syncEvents` per Phase 05) replaces `learning_audit_log` — no separate audit log table created
+- Dropped `pg_trgm` deduplication (Neon compatibility concern) — quality control uses simpler stale dismissal + snapshot pruning
+- Dropped all API routes from Steps 8-9 — Phase 04 already built the Workshop UI with learnings browser, status filters, and detail views
+- Dropped `newsletter` source type — not implemented, kept 5 types: anthropic_docs, anthropic_blog, changelog, github_repo, mcp_registry
+- Dropped `urgency` field from distillation result — simplified to relevance only
+- Source type mapping in distillation: pipeline types (anthropic_docs, anthropic_blog, etc.) map to learnings table types (docs, blog, changelog, community)
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `packages/db/drizzle/0002_phase06_schema.sql` | Migration + seed data (10 sources) |
+| `packages/web/src/lib/pipeline/fetchers.ts` | Web page + GitHub repo fetchers |
+| `packages/web/src/lib/pipeline/change-detection.ts` | SHA-256 content hashing |
+| `packages/web/src/lib/pipeline/scraper.ts` | Scraper orchestration |
+| `packages/web/src/lib/pipeline/prompt.ts` | System + user prompts for distillation |
+| `packages/web/src/lib/pipeline/distillation.ts` | Claude Haiku API integration |
+| `packages/web/src/lib/pipeline/quality-control.ts` | Stale dismissal + snapshot pruning |
+| `packages/web/src/app/api/cron/scrape/route.ts` | Daily scrape + distillation cron |
+| `packages/web/src/app/api/cron/maintenance/route.ts` | Weekly maintenance cron |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `packages/db/src/schema.ts` | Added sourceConfigs + sourceSnapshots tables |
 
 ---
 
