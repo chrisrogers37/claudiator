@@ -306,16 +306,7 @@ export const learnings = pgTable(
     fullContent: text("full_content"),
     sourceUrl: text("source_url"),
     sourceType: text("source_type", {
-      enum: [
-        "blog",
-        "docs",
-        "changelog",
-        "community",
-        "anthropic_docs",
-        "anthropic_blog",
-        "github_repo",
-        "mcp_registry",
-      ],
+      enum: ["blog", "docs", "changelog", "community"],
     }).notNull(),
     relevanceTags: text("relevance_tags").array().default([]),
     distilledAt: timestamp("distilled_at", { withTimezone: true }).notNull().defaultNow(),

@@ -1,11 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@claudefather/db/client";
-import {
-  learnings,
-  learningSkillLinks,
-  sourceSnapshots,
-} from "@claudefather/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { learnings, learningSkillLinks } from "@claudefather/db/schema";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt";
 
 interface DistillationInput {
@@ -14,6 +9,7 @@ interface DistillationInput {
   url: string;
   sourceType: string;
   content: string;
+  previousContent: string | null;
 }
 
 interface DistillationResult {
@@ -29,21 +25,9 @@ interface DistillationResult {
 
 export async function triggerDistillation(
   db: Db,
-  input: DistillationInput
+  input: DistillationInput,
+  anthropic: Anthropic
 ): Promise<void> {
-  // Get previous snapshot for diff context
-  const prevSnapshots = await db
-    .select({ rawContent: sourceSnapshots.rawContent })
-    .from(sourceSnapshots)
-    .where(eq(sourceSnapshots.sourceConfigId, input.sourceConfigId))
-    .orderBy(desc(sourceSnapshots.fetchedAt))
-    .offset(1)
-    .limit(1);
-
-  const previousContent = prevSnapshots[0]?.rawContent || null;
-
-  const anthropic = new Anthropic();
-
   const response = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 4096,
@@ -51,7 +35,7 @@ export async function triggerDistillation(
     messages: [
       {
         role: "user",
-        content: buildUserPrompt(input, input.content, previousContent),
+        content: buildUserPrompt(input, input.content, input.previousContent),
       },
     ],
   });
@@ -90,21 +74,28 @@ export async function triggerDistillation(
       title: result.title,
       summary: result.summary,
       sourceUrl: input.url,
-      sourceType: (sourceTypeMap[input.sourceType] || "community") as "docs" | "blog" | "changelog" | "community",
+      sourceType: (sourceTypeMap[input.sourceType] || "community") as
+        | "docs"
+        | "blog"
+        | "changelog"
+        | "community",
       relevanceTags: result.relevance_tags || [],
       status: "new",
     })
     .returning({ id: learnings.id });
 
-  // Store proposed skill changes
-  for (const skillChange of result.affected_skills || []) {
+  // Batch insert proposed skill changes
+  const skillChanges = result.affected_skills || [];
+  if (skillChanges.length > 0) {
     await db
       .insert(learningSkillLinks)
-      .values({
-        learningId: learning.id,
-        skillSlug: skillChange.skill_slug,
-        proposedChange: skillChange.proposed_change,
-      })
+      .values(
+        skillChanges.map((sc) => ({
+          learningId: learning.id,
+          skillSlug: sc.skill_slug,
+          proposedChange: sc.proposed_change,
+        }))
+      )
       .onConflictDoNothing();
   }
 

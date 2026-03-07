@@ -1,18 +1,26 @@
 import { createHash } from "crypto";
-import { createDb } from "@claudefather/db/client";
+import type { Db } from "@claudefather/db/client";
 import { sourceSnapshots } from "@claudefather/db/schema";
 import { eq, desc } from "drizzle-orm";
 
+interface ChangeResult {
+  changed: boolean;
+  previousContent: string | null;
+}
+
 export async function detectChanges(
-  db: ReturnType<typeof createDb>,
+  db: Db,
   sourceConfigId: string,
   content: string
-): Promise<boolean> {
+): Promise<ChangeResult> {
   const contentHash = createHash("sha256").update(content).digest("hex");
 
-  // Get most recent snapshot for this source
+  // Get most recent snapshot for this source (include rawContent for distillation diff)
   const [prev] = await db
-    .select({ contentHash: sourceSnapshots.contentHash })
+    .select({
+      contentHash: sourceSnapshots.contentHash,
+      rawContent: sourceSnapshots.rawContent,
+    })
     .from(sourceSnapshots)
     .where(eq(sourceSnapshots.sourceConfigId, sourceConfigId))
     .orderBy(desc(sourceSnapshots.fetchedAt))
@@ -25,7 +33,9 @@ export async function detectChanges(
     rawContent: content,
   });
 
-  // First fetch ever, or content changed
-  if (!prev) return true;
-  return prev.contentHash !== contentHash;
+  if (!prev) return { changed: true, previousContent: null };
+  return {
+    changed: prev.contentHash !== contentHash,
+    previousContent: prev.rawContent,
+  };
 }

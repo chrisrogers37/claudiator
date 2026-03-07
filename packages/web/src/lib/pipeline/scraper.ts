@@ -1,20 +1,26 @@
-import { createDb } from "@claudefather/db/client";
+import type { Db } from "@claudefather/db/client";
 import { sourceConfigs } from "@claudefather/db/schema";
 import { eq, sql, and, isNull, or } from "drizzle-orm";
 import { fetchSource } from "./fetchers";
 import { detectChanges } from "./change-detection";
 
+export interface ChangedSource {
+  sourceConfigId: string;
+  name: string;
+  url: string;
+  sourceType: string;
+  content: string;
+  previousContent: string | null;
+}
+
 interface ScrapeResult {
   sourcesChecked: number;
   changesDetected: number;
+  changedSources: ChangedSource[];
   errors: { name: string; error: string }[];
 }
 
-export async function runScraperJob(
-  databaseUrl: string
-): Promise<ScrapeResult> {
-  const db = createDb(databaseUrl);
-
+export async function runScraperJob(db: Db): Promise<ScrapeResult> {
   // Find sources due for checking
   const sources = await db
     .select()
@@ -36,15 +42,8 @@ export async function runScraperJob(
       )
     );
 
-  let changesDetected = 0;
+  const changedSources: ChangedSource[] = [];
   const errors: { name: string; error: string }[] = [];
-  const changedSources: {
-    id: string;
-    name: string;
-    url: string;
-    sourceType: string;
-    content: string;
-  }[] = [];
 
   for (const source of sources) {
     try {
@@ -54,7 +53,11 @@ export async function runScraperJob(
         (source.fetchConfig as Record<string, string>) || {}
       );
 
-      const hasChanged = await detectChanges(db, source.id, content);
+      const { changed, previousContent } = await detectChanges(
+        db,
+        source.id,
+        content
+      );
 
       // Update last_checked_at
       await db
@@ -62,14 +65,14 @@ export async function runScraperJob(
         .set({ lastCheckedAt: new Date() })
         .where(eq(sourceConfigs.id, source.id));
 
-      if (hasChanged) {
-        changesDetected++;
+      if (changed) {
         changedSources.push({
-          id: source.id,
+          sourceConfigId: source.id,
           name: source.name,
           url: source.url,
           sourceType: source.sourceType,
           content,
+          previousContent,
         });
       }
     } catch (err) {
@@ -81,7 +84,8 @@ export async function runScraperJob(
 
   return {
     sourcesChecked: sources.length,
-    changesDetected,
+    changesDetected: changedSources.length,
+    changedSources,
     errors,
   };
 }

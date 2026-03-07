@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 import { runScraperJob } from "@/lib/pipeline/scraper";
 import { triggerDistillation } from "@/lib/pipeline/distillation";
 import { createDb } from "@claudefather/db/client";
-import { sourceConfigs, sourceSnapshots } from "@claudefather/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -16,52 +15,32 @@ export async function POST(request: Request) {
   }
 
   try {
-    const databaseUrl = process.env.DATABASE_URL!;
-    const result = await runScraperJob(databaseUrl);
+    const db = createDb(process.env.DATABASE_URL!);
+    const result = await runScraperJob(db);
 
     // Trigger distillation for changed sources
     let distillations = 0;
-    if (result.changesDetected > 0) {
-      const db = createDb(databaseUrl);
+    if (result.changedSources.length > 0) {
+      const anthropic = new Anthropic();
 
-      // Get sources that were just checked and had changes
-      // (the ones with snapshots created in the last minute)
-      const recentSnapshots = await db
-        .select({
-          sourceConfigId: sourceSnapshots.sourceConfigId,
-          rawContent: sourceSnapshots.rawContent,
-          sourceName: sourceConfigs.name,
-          sourceUrl: sourceConfigs.url,
-          sourceType: sourceConfigs.sourceType,
-        })
-        .from(sourceSnapshots)
-        .innerJoin(
-          sourceConfigs,
-          eq(sourceConfigs.id, sourceSnapshots.sourceConfigId)
-        )
-        .where(
-          sql`${sourceSnapshots.fetchedAt} > NOW() - INTERVAL '2 minutes'`
-        )
-        .orderBy(desc(sourceSnapshots.fetchedAt));
-
-      // Deduplicate by sourceConfigId (take most recent)
-      const seen = new Set<string>();
-      for (const snap of recentSnapshots) {
-        if (seen.has(snap.sourceConfigId)) continue;
-        seen.add(snap.sourceConfigId);
-
+      for (const source of result.changedSources) {
         try {
-          await triggerDistillation(db, {
-            sourceConfigId: snap.sourceConfigId,
-            name: snap.sourceName,
-            url: snap.sourceUrl,
-            sourceType: snap.sourceType,
-            content: snap.rawContent,
-          });
+          await triggerDistillation(
+            db,
+            {
+              sourceConfigId: source.sourceConfigId,
+              name: source.name,
+              url: source.url,
+              sourceType: source.sourceType,
+              content: source.content,
+              previousContent: source.previousContent,
+            },
+            anthropic
+          );
           distillations++;
         } catch (err) {
           console.error(
-            `[pipeline] Distillation failed for ${snap.sourceName}:`,
+            `[pipeline] Distillation failed for ${source.name}:`,
             err instanceof Error ? err.message : err
           );
         }
@@ -70,8 +49,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      ...result,
+      sourcesChecked: result.sourcesChecked,
+      changesDetected: result.changesDetected,
       distillations,
+      errors: result.errors,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

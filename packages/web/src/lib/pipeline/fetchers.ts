@@ -35,18 +35,19 @@ async function fetchGitHubRepo(
   const [, owner, repo] = match;
   const watchTypes = (config.watch || "releases").split(",");
 
-  const parts: string[] = [];
   const headers = githubHeaders();
+  const fetches: Promise<string | null>[] = [];
 
   if (watchTypes.includes("releases")) {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/releases?per_page=5`,
-      { headers, signal: AbortSignal.timeout(15_000) }
-    );
-    if (res.ok) {
-      const releases = await res.json();
-      parts.push(
-        "RELEASES:\n" +
+    fetches.push(
+      fetch(
+        `https://api.github.com/repos/${owner}/${repo}/releases?per_page=5`,
+        { headers, signal: AbortSignal.timeout(15_000) }
+      ).then(async (res) => {
+        if (!res.ok) return null;
+        const releases = await res.json();
+        return (
+          "RELEASES:\n" +
           JSON.stringify(
             releases.map((r: Record<string, unknown>) => ({
               tag: r.tag_name,
@@ -55,33 +56,40 @@ async function fetchGitHubRepo(
               date: r.published_at,
             }))
           )
-      );
-    }
+        );
+      })
+    );
   }
 
   if (watchTypes.includes("commits")) {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/commits?per_page=20`,
-      { headers, signal: AbortSignal.timeout(15_000) }
-    );
-    if (res.ok) {
-      const commits = await res.json();
-      parts.push(
-        "RECENT_COMMITS:\n" +
+    fetches.push(
+      fetch(
+        `https://api.github.com/repos/${owner}/${repo}/commits?per_page=20`,
+        { headers, signal: AbortSignal.timeout(15_000) }
+      ).then(async (res) => {
+        if (!res.ok) return null;
+        const commits = await res.json();
+        return (
+          "RECENT_COMMITS:\n" +
           JSON.stringify(
             commits.map(
-              (c: { sha: string; commit: { message: string; author: { date: string } } }) => ({
+              (c: {
+                sha: string;
+                commit: { message: string; author: { date: string } };
+              }) => ({
                 sha: c.sha.slice(0, 7),
                 message: c.commit.message.slice(0, 200),
                 date: c.commit.author.date,
               })
             )
           )
-      );
-    }
+        );
+      })
+    );
   }
 
-  return parts.join("\n\n");
+  const results = await Promise.all(fetches);
+  return results.filter(Boolean).join("\n\n");
 }
 
 function githubHeaders(): Record<string, string> {
