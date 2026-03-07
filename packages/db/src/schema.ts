@@ -238,6 +238,63 @@ export const userInstalledVersions = pgTable(
   ]
 );
 
+// ─── Source Configs (Intelligence Pipeline) ─────────────────────────────────
+
+export const sourceConfigs = pgTable(
+  "source_configs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    url: text("url").notNull().unique(),
+    sourceType: text("source_type", {
+      enum: [
+        "anthropic_docs",
+        "anthropic_blog",
+        "changelog",
+        "github_repo",
+        "mcp_registry",
+      ],
+    }).notNull(),
+    checkFrequency: text("check_frequency", {
+      enum: ["daily", "weekly"],
+    })
+      .notNull()
+      .default("daily"),
+    isActive: boolean("is_active").notNull().default(true),
+    fetchConfig: jsonb("fetch_config")
+      .$type<Record<string, string>>()
+      .default({}),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("idx_source_configs_active").on(table.isActive)]
+);
+
+// ─── Source Snapshots (Intelligence Pipeline) ────────────────────────────────
+
+export const sourceSnapshots = pgTable(
+  "source_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceConfigId: uuid("source_config_id")
+      .notNull()
+      .references(() => sourceConfigs.id, { onDelete: "cascade" }),
+    contentHash: text("content_hash").notNull(),
+    rawContent: text("raw_content").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_snapshots_source_fetched").on(
+      table.sourceConfigId,
+      table.fetchedAt
+    ),
+  ]
+);
+
 // ─── Learnings (Intelligence Pipeline Display Layer) ────────────────────────
 
 export const learnings = pgTable(
@@ -249,7 +306,16 @@ export const learnings = pgTable(
     fullContent: text("full_content"),
     sourceUrl: text("source_url"),
     sourceType: text("source_type", {
-      enum: ["blog", "docs", "changelog", "community"],
+      enum: [
+        "blog",
+        "docs",
+        "changelog",
+        "community",
+        "anthropic_docs",
+        "anthropic_blog",
+        "github_repo",
+        "mcp_registry",
+      ],
     }).notNull(),
     relevanceTags: text("relevance_tags").array().default([]),
     distilledAt: timestamp("distilled_at", { withTimezone: true }).notNull().defaultNow(),
