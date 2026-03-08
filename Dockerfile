@@ -24,14 +24,12 @@ FROM node:20-slim
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy built artifacts and production deps
+# Copy built artifacts and production deps (pnpm hoists to root node_modules)
 COPY --from=builder /app/packages/db/dist ./packages/db/dist
 COPY --from=builder /app/packages/db/package.json ./packages/db/
 COPY --from=builder /app/packages/mcp-server/dist ./packages/mcp-server/dist
 COPY --from=builder /app/packages/mcp-server/package.json ./packages/mcp-server/
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/db/node_modules ./packages/db/node_modules 2>/dev/null || true
-COPY --from=builder /app/packages/mcp-server/node_modules ./packages/mcp-server/node_modules 2>/dev/null || true
 COPY pnpm-workspace.yaml package.json ./
 
 EXPOSE 3001
