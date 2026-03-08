@@ -12,7 +12,7 @@
     "@auth/drizzle-adapter": "^1.7.0",
     "@claudefather/db": "workspace:*",
     "@monaco-editor/react": "^4.7.0",
-    "@neondatabase/serverless": "^1.0.0",
+    "@neondatabase/serverless": "^0.10.0",
     "@tailwindcss/postcss": "^4.2.1",
     "@tailwindcss/typography": "^0.5.19",
     "bcryptjs": "^2.4.3",

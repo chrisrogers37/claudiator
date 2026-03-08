@@ -16,7 +16,7 @@
     "studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.0",
+    "@neondatabase/serverless": "^0.10.0",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.38.0"
   },
