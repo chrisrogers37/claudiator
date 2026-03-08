@@ -15,38 +15,50 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async signIn({ account, profile }) {
-      if (!account || account.provider !== "github" || !profile) return false;
-
-      // Upsert user with GitHub identity
-      const githubId = Number(profile.id);
-      const existing = await db
-        .select()
-        .from(users)
-        .where(eq(users.githubId, githubId))
-        .limit(1);
-
-      if (existing.length === 0) {
-        await db.insert(users).values({
-          githubId,
-          githubUsername: profile.login as string,
-          displayName: profile.name as string | undefined,
-          avatarUrl: profile.avatar_url as string | undefined,
-          email: profile.email as string | undefined,
-          role: "member",
+      if (!account || account.provider !== "github" || !profile) {
+        console.error("[auth] signIn rejected: missing account or profile", {
+          hasAccount: !!account,
+          provider: account?.provider,
+          hasProfile: !!profile,
         });
-      } else {
-        await db
-          .update(users)
-          .set({
-            githubUsername: profile.login as string,
-            displayName: profile.name as string | undefined,
-            avatarUrl: profile.avatar_url as string | undefined,
-            updatedAt: new Date(),
-          })
-          .where(eq(users.githubId, githubId));
+        return false;
       }
 
-      return true;
+      try {
+        // Upsert user with GitHub identity
+        const githubId = Number(profile.id);
+        const existing = await db
+          .select()
+          .from(users)
+          .where(eq(users.githubId, githubId))
+          .limit(1);
+
+        if (existing.length === 0) {
+          await db.insert(users).values({
+            githubId,
+            githubUsername: profile.login as string,
+            displayName: (profile.name as string) || null,
+            avatarUrl: (profile.avatar_url as string) || null,
+            email: (profile.email as string) || null,
+            role: "member",
+          });
+        } else {
+          await db
+            .update(users)
+            .set({
+              githubUsername: profile.login as string,
+              displayName: (profile.name as string) || null,
+              avatarUrl: (profile.avatar_url as string) || null,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.githubId, githubId));
+        }
+
+        return true;
+      } catch (err) {
+        console.error("[auth] signIn error:", err);
+        return false;
+      }
     },
     async session({ session, user }) {
       // Attach internal user ID and role to session
