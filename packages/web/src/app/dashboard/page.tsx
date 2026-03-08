@@ -45,9 +45,6 @@ export default async function DashboardPage() {
           <h2 className="font-mono text-lg text-amber-400 mb-4">
             MCP Configuration
           </h2>
-          <p className="text-gray-400 text-sm mb-3">
-            Add this to your <code className="text-green-400">~/.claude/settings.json</code>:
-          </p>
           <CopySnippet />
         </section>
       </div>

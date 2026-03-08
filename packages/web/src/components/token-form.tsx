@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 
+const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "https://mcp.the-claudefather.railway.app";
+
 export function TokenForm() {
   const [name, setName] = useState("");
   const [expiresInDays, setExpiresInDays] = useState<number | null>(90);
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedCmd, setCopiedCmd] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +39,14 @@ export function TokenForm() {
   };
 
   if (generatedToken) {
+    const mcpCommand = `claude mcp add claudefather --transport http ${MCP_SERVER_URL}/mcp -H "Authorization: Bearer ${generatedToken}"`;
+
+    const handleCopyCmd = async () => {
+      await navigator.clipboard.writeText(mcpCommand);
+      setCopiedCmd(true);
+      setTimeout(() => setCopiedCmd(false), 2000);
+    };
+
     return (
       <div>
         <p className="text-amber-400 font-mono text-sm mb-4">
@@ -49,9 +60,27 @@ export function TokenForm() {
             onClick={handleCopy}
             className="absolute top-2 right-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 font-mono text-xs rounded transition-colors"
           >
-            {copied ? "Copied!" : "Copy"}
+            {copied ? "Copied!" : "Copy Token"}
           </button>
         </div>
+
+        <div className="mt-6">
+          <p className="text-gray-400 font-mono text-sm mb-2">
+            Run this in your terminal to configure Claude Code:
+          </p>
+          <div className="relative">
+            <pre className="bg-[#161b22] border border-gray-700 rounded p-4 font-mono text-xs text-cyan-400 break-all whitespace-pre-wrap">
+              {mcpCommand}
+            </pre>
+            <button
+              onClick={handleCopyCmd}
+              className="absolute top-2 right-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 font-mono text-xs rounded transition-colors"
+            >
+              {copiedCmd ? "Copied!" : "Copy Command"}
+            </button>
+          </div>
+        </div>
+
         <a
           href="/dashboard"
           className="inline-block mt-6 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 font-mono text-sm rounded transition-colors"
