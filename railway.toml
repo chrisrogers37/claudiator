@@ -1,0 +1,7 @@
+[build]
+builder = "RAILPACK"
+buildCommand = "pnpm --filter @claudefather/db build && pnpm --filter @claudefather/mcp-server build"
+watchPatterns = ["/packages/mcp-server/**", "/packages/db/**"]
+
+[deploy]
+startCommand = "node packages/mcp-server/dist/index.js"

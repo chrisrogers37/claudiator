@@ -11,6 +11,8 @@ import { eq } from "drizzle-orm";
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const DATABASE_URL = process.env.DATABASE_URL;
 
+console.log(`Starting claudefather MCP server...`);
+
 if (!DATABASE_URL) {
   console.error("DATABASE_URL environment variable is required.");
   process.exit(1);
