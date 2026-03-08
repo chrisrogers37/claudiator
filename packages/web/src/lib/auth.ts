@@ -60,19 +60,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return false;
       }
     },
-    async session({ session, user }) {
-      // Attach internal user ID and role to session
-      const dbUser = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, user.email!))
-        .limit(1);
+    async jwt({ token, profile }) {
+      if (profile) {
+        // On sign-in, attach DB user info to the JWT token
+        const githubId = Number(profile.id);
+        const dbUser = await db
+          .select()
+          .from(users)
+          .where(eq(users.githubId, githubId))
+          .limit(1);
 
-      if (dbUser.length > 0) {
-        (session as any).userId = dbUser[0].id;
-        (session as any).role = dbUser[0].role;
+        if (dbUser.length > 0) {
+          token.userId = dbUser[0].id;
+          token.role = dbUser[0].role;
+        }
       }
-
+      return token;
+    },
+    async session({ session, token }) {
+      // Attach internal user ID and role from JWT token to session
+      if (token.userId) {
+        (session as any).userId = token.userId;
+      }
+      if (token.role) {
+        (session as any).role = token.role;
+      }
       return session;
     },
   },
