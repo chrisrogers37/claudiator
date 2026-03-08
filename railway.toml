@@ -5,3 +5,5 @@ watchPatterns = ["/packages/mcp-server/**", "/packages/db/**"]
 
 [deploy]
 startCommand = "node packages/mcp-server/dist/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 30

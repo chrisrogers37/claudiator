@@ -97,6 +97,6 @@ app.all("/mcp", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Claudefather MCP server listening on port ${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Claudefather MCP server listening on 0.0.0.0:${PORT}`);
 });
