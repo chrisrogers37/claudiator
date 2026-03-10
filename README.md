@@ -1,6 +1,6 @@
-# the-claudiator
+# claudiator
 
-Centralized skills platform for Claude Code. Registry-backed skill distribution with versioning, telemetry, and feedback.
+Skill intelligence engine for Claude Code. Registry-backed skill distribution with versioning, telemetry, feedback, and an automated arena for evaluating and evolving skills through gladiator-style combat.
 
 ## Architecture
 
@@ -46,6 +46,25 @@ No local installation required — the MCP server is hosted on Railway.
 | `claudiator_sync` | Fetch latest skills from registry and write to `~/.claude/skills/` |
 | `claudiator_check_updates` | Check for available skill updates |
 | `claudiator_whoami` | Show your identity and token status |
+| `claudiator_log_invocation` | Log skill invocation for telemetry |
+| `claudiator_session_feedback` | Submit end-of-session skill ratings |
+| `claudiator_rollback` | Roll back a skill to a previous version |
+| `claudiator_pin` | Pin a skill to a specific version |
+| `claudiator_unpin` | Unpin a skill to resume tracking latest |
+| `claudiator_publish` | Publish a new skill version (admin) |
+
+## Arena
+
+The arena discovers skills from the wild, evaluates them through automated battles against existing champions, and evolves the strongest versions through natural selection.
+
+- **Intake** — Submit skill candidates via URL or raw content. LLM-powered categorization and fight-worthiness scoring.
+- **Battles** — 3 scenarios x 1 round x 5 judges per battle. Sonnet executes skills, Haiku judges them.
+- **Rankings** — ELO-based leaderboard with titles (The Undefeated, The Veteran, The Contender, The Fallen).
+- **Evolution** — Close-loss battles trigger LLM-driven skill evolution that combines the best of both competitors.
+
+UI at `/arena/` (overview), `/arena/intake/` (queue), `/arena/rankings/` (leaderboard), `/arena/[battleId]/` (battle detail).
+
+Kill switch: set `ARENA_ENABLED=false` to disable all arena endpoints.
 
 ## Development
 
@@ -68,3 +87,5 @@ pnpm --filter @claudiator/web run dev
 - `NEXTAUTH_URL` — Web app URL
 - `NEXTAUTH_SECRET` — Random secret for NextAuth
 - `NEXT_PUBLIC_MCP_SERVER_URL` — MCP server URL for config snippet
+- `ANTHROPIC_API_KEY` — Required for arena LLM calls (categorization, judging, evolution)
+- `ARENA_ENABLED` — Set to `false` to disable arena endpoints (default: enabled)

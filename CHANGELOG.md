@@ -4,6 +4,18 @@
 
 ### Added
 
+- **Rebrand: Claudefather to Claudiator** — All packages (`@claudiator/db`, `@claudiator/web`, `@claudiator/mcp-server`), MCP tool names (`claudiator_*`), UI text, pipeline references, global skills, docs, and config updated. Skill directory renamed to `claudiator-sync`. GitHub repo renamed to `claudiator`.
+- **Arena schema** — 6 new tables: `intake_candidates`, `battles`, `battle_scenarios`, `battle_rounds`, `battle_judgments`, `arena_rankings`. Migration: `0003_arena_schema.sql`.
+- **Arena intake system** — LLM-powered categorization and fight-worthiness scoring for skill candidates. API routes for submitting, categorizing, and scoring candidates.
+- **Arena battle engine** — Matchmaker, scenario generation (3 per battle), parallel skill execution via Sonnet, 5-judge panel via Haiku, majority-vote aggregation. Full orchestration in `executeBattle()`.
+- **Arena rankings** — ELO-based ranking system (K=32) with personified titles: The Undefeated, The Veteran, The Contender, The Fallen, The Newcomer.
+- **Arena evolution** — Detects close-loss battles, generates evolved skill versions combining best techniques from both competitors, auto-creates follow-up battles.
+- **Arena UI** — Overview page with stats and recent battles, intake queue with action buttons, battle detail with side-by-side outputs and judgment cards, rankings leaderboard. Dark terminal theme with gold (champion) and copper (challenger) accents.
+- **Arena kill switch** — `ARENA_ENABLED=false` env var disables all arena API endpoints.
+- **Arena nav link** — Added to main navigation bar.
+
+### Previously added
+
 - **Usage telemetry schema** — Two new Drizzle tables: `skill_invocations` (per-invocation logging) and `skill_feedback` (end-of-session ratings). Indexed for Workshop and Dashboard queries. `sync_events` deferred to Phase 03.
 - **`claudiator_log_invocation` MCP tool** — Fire-and-forget skill invocation logging. Called by the PostToolUse hook or explicitly by skills that want to report duration/metadata.
 - **`claudiator_session_feedback` MCP tool** — End-of-session skill ratings (1-5) with optional comments.
