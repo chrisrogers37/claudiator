@@ -1,8 +1,8 @@
 {
-  "name": "@claudefather/mcp-server",
+  "name": "@claudiator/mcp-server",
   "version": "1.0.0",
   "private": true,
-  "description": "MCP server for claudefather skill registry — hosted on Railway, Streamable HTTP transport.",
+  "description": "MCP server for claudiator skill registry — hosted on Railway, Streamable HTTP transport.",
   "type": "module",
   "scripts": {
     "build": "tsc",
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.0",
-    "@claudefather/db": "workspace:*",
+    "@claudiator/db": "workspace:*",
     "@neondatabase/serverless": "^1.0.2",
     "drizzle-orm": "^0.45.1",
     "zod": "^3.25.0",

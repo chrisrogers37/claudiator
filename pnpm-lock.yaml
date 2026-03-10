@@ -35,7 +35,7 @@ importers:
 
   packages/mcp-server:
     dependencies:
-      '@claudefather/db':
+      '@claudiator/db':
         specifier: workspace:*
         version: link:../db
       '@modelcontextprotocol/sdk':
@@ -75,7 +75,7 @@ importers:
       '@auth/drizzle-adapter':
         specifier: ^1.7.0
         version: 1.11.1
-      '@claudefather/db':
+      '@claudiator/db':
         specifier: workspace:*
         version: link:../db
       '@monaco-editor/react':

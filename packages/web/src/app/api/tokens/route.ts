@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateToken } from "@/lib/tokens";
-import { createDb } from "@claudefather/db/client";
-import { apiTokens } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { apiTokens } from "@claudiator/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);

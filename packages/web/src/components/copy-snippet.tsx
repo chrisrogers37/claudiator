@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "https://mcp.the-claudefather.railway.app";
+const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "https://mcp.the-claudiator.railway.app";
 
 export function CopySnippet() {
   const [copiedJson, setCopiedJson] = useState(false);
@@ -11,7 +11,7 @@ export function CopySnippet() {
   const snippet = JSON.stringify(
     {
       mcpServers: {
-        claudefather: {
+        claudiator: {
           type: "http",
           url: `${MCP_SERVER_URL}/mcp`,
           headers: {
@@ -24,7 +24,7 @@ export function CopySnippet() {
     2
   );
 
-  const terminalCommand = `claude mcp add claudefather --transport http ${MCP_SERVER_URL}/mcp -H "Authorization: Bearer <your-token>"`;
+  const terminalCommand = `claude mcp add claudiator --transport http ${MCP_SERVER_URL}/mcp -H "Authorization: Bearer <your-token>"`;
 
   const handleCopyJson = async () => {
     await navigator.clipboard.writeText(snippet);

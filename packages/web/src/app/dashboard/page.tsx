@@ -12,7 +12,7 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-[#0d1117] text-gray-200">
       <div className="max-w-4xl mx-auto px-6 py-12">
         <h1 className="font-mono text-2xl text-green-400 mb-2">
-          claudefather
+          claudiator
         </h1>
         <p className="text-gray-500 mb-8">
           API Keys &amp; MCP Configuration

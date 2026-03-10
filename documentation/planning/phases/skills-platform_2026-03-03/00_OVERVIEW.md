@@ -2,11 +2,11 @@
 
 **Session:** skills-platform
 **Date:** 2026-03-03
-**Scope:** Evolve claudefather from a file-copy skill distribution tool into a centralized skills platform with a registry, MCP-backed sync, telemetry, feedback, a Workshop UI, and an intelligence pipeline.
+**Scope:** Evolve claudiator from a file-copy skill distribution tool into a centralized skills platform with a registry, MCP-backed sync, telemetry, feedback, a Workshop UI, and an intelligence pipeline.
 
 ## Context
 
-Claudefather manages 38 skills for a team of ~20 users. Today it uses git-clone + file-copy distribution with zero visibility into adoption, quality, or best practices. The maintainer is flying blind.
+Claudiator manages 38 skills for a team of ~20 users. Today it uses git-clone + file-copy distribution with zero visibility into adoption, quality, or best practices. The maintainer is flying blind.
 
 This session designs a 6-phase platform that adds:
 1. A central skill registry with MCP-based distribution
@@ -65,7 +65,7 @@ Phase 06: Intelligence Pipeline  ◄────(depends on 01, 04)────�
 
 1. **Skills must live on local filesystem** — Claude Code loads skills from `~/.claude/skills/` at session start. MCP tools return skill content; Claude Code writes to disk. MCP cannot serve skills at runtime.
 2. **MCP is a remote server on Railway** — No local npm package to install. Users configure a URL + token in `settings.json`. The MCP server handles auth, sync, telemetry, and feedback over Streamable HTTP transport.
-3. **MCP replaces git-clone distribution** — Same UX (interactive `/claudefather-sync`), but backed by registry instead of file diff.
+3. **MCP replaces git-clone distribution** — Same UX (interactive `/claudiator-sync`), but backed by registry instead of file diff.
 4. **GitHub OAuth for identity** — Any GitHub account, not org-specific. Tokens linked to GitHub identity with expiration and rotation.
 5. **Workshop is a staging area** — AI proposes changes, maintainer reviews and approves. No autonomous skill modification.
 6. **Backward compatible** — Users without MCP configured fall back to legacy git-based sync.

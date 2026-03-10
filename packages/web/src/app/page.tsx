@@ -9,7 +9,7 @@ export default async function LandingPage() {
     <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
       <div className="text-center">
         <h1 className="font-mono text-4xl text-green-400 mb-4">
-          claudefather
+          claudiator
         </h1>
         <p className="text-gray-400 mb-8 max-w-md">
           Centralized skill registry for Claude Code. Manage your skills,

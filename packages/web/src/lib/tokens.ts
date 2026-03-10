@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { createDb } from "@claudefather/db/client";
-import { apiTokens } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { apiTokens } from "@claudiator/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -10,7 +10,7 @@ const TOKEN_PREFIX = "cf_";
 const TOKEN_BYTES = 32; // 32 bytes = 64 hex chars + "cf_" prefix = 67 chars total
 const BCRYPT_ROUNDS = 12;
 
-// Note: validateToken lives in @claudefather/db/auth (shared by MCP server and web app)
+// Note: validateToken lives in @claudiator/db/auth (shared by MCP server and web app)
 // This module only handles token generation, revocation, and rotation (web-only operations)
 
 export interface GenerateTokenResult {

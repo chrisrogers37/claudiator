@@ -10,7 +10,7 @@ export async function Nav() {
     <nav className="border-b border-gray-800 bg-[#0d1117]">
       <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
         <a href="/dashboard" className="font-mono text-green-400 text-sm">
-          claudefather
+          claudiator
         </a>
         <div className="flex items-center gap-4">
           <a
@@ -30,6 +30,12 @@ export async function Nav() {
             className="font-mono text-xs text-gray-500 hover:text-gray-300"
           >
             Learnings
+          </a>
+          <a
+            href="/arena"
+            className="font-mono text-xs text-yellow-500 hover:text-yellow-400"
+          >
+            Arena
           </a>
           {role === "admin" && (
             <a

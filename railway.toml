@@ -1,6 +1,6 @@
 [build]
 builder = "RAILPACK"
-buildCommand = "pnpm --filter @claudefather/db build && pnpm --filter @claudefather/mcp-server build"
+buildCommand = "pnpm --filter @claudiator/db build && pnpm --filter @claudiator/mcp-server build"
 watchPatterns = ["/packages/mcp-server/**", "/packages/db/**"]
 
 [deploy]

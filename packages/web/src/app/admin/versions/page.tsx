@@ -1,9 +1,9 @@
-import { createDb } from "@claudefather/db/client";
+import { createDb } from "@claudiator/db/client";
 import {
   userInstalledVersions,
   skills,
   skillVersions,
-} from "@claudefather/db/schema";
+} from "@claudiator/db/schema";
 import { sql, eq, and } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Card } from "@/components/ui/card";

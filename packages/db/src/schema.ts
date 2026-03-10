@@ -7,6 +7,7 @@ import {
   jsonb,
   integer,
   smallint,
+  real,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -358,5 +359,182 @@ export const learningSkillLinks = pgTable(
     index("idx_learning_skill_links_learning").on(table.learningId),
     index("idx_learning_skill_links_skill").on(table.skillSlug),
     index("idx_learning_skill_links_status").on(table.status),
+  ]
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ARENA TABLES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Intake Candidates ──────────────────────────────────────────────────────
+
+export const intakeCandidates = pgTable(
+  "intake_candidates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceType: text("source_type", {
+      enum: ["github_skill", "web_article", "community_submission", "provider_skills"],
+    }).notNull(),
+    sourceUrl: text("source_url"),
+    rawContent: text("raw_content").notNull(),
+    extractedPurpose: text("extracted_purpose"),
+    category: text("category"),
+    matchedChampionSkillId: uuid("matched_champion_skill_id").references(() => skills.id, {
+      onDelete: "set null",
+    }),
+    fightScore: integer("fight_score"),
+    status: text("status", {
+      enum: ["new", "categorized", "scored", "queued", "battling", "promoted", "rejected", "dismissed"],
+    })
+      .notNull()
+      .default("new"),
+    submittedBy: uuid("submitted_by").references(() => users.id, { onDelete: "set null" }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_intake_status").on(table.status),
+    index("idx_intake_category").on(table.category),
+    index("idx_intake_fight_score").on(table.fightScore),
+  ]
+);
+
+// ─── Battles ────────────────────────────────────────────────────────────────
+
+export const battles = pgTable(
+  "battles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    challengerId: uuid("challenger_id")
+      .notNull()
+      .references(() => intakeCandidates.id, { onDelete: "cascade" }),
+    championSkillId: uuid("champion_skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+    championVersionId: uuid("champion_version_id")
+      .notNull()
+      .references(() => skillVersions.id, { onDelete: "cascade" }),
+    status: text("status", {
+      enum: ["pending", "running", "judging", "complete", "failed", "cancelled"],
+    })
+      .notNull()
+      .default("pending"),
+    verdict: text("verdict", {
+      enum: ["champion_wins", "challenger_wins", "draw"],
+    }),
+    championScore: real("champion_score"),
+    challengerScore: real("challenger_score"),
+    config: jsonb("config").$type<{
+      scenarioCount: number;
+      roundsPerScenario: number;
+      judgeCount: number;
+      winThreshold: number;
+    }>().notNull(),
+    evolutionBattleId: uuid("evolution_battle_id"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_battles_status").on(table.status),
+    index("idx_battles_champion_skill").on(table.championSkillId),
+    index("idx_battles_challenger").on(table.challengerId),
+  ]
+);
+
+// ─── Battle Scenarios ───────────────────────────────────────────────────────
+
+export const battleScenarios = pgTable(
+  "battle_scenarios",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    battleId: uuid("battle_id")
+      .notNull()
+      .references(() => battles.id, { onDelete: "cascade" }),
+    scenarioIndex: integer("scenario_index").notNull(),
+    description: text("description").notNull(),
+    projectContext: text("project_context").notNull(),
+    userPrompt: text("user_prompt").notNull(),
+    difficulty: text("difficulty", {
+      enum: ["easy", "medium", "hard"],
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_scenarios_battle").on(table.battleId)]
+);
+
+// ─── Battle Rounds ──────────────────────────────────────────────────────────
+
+export const battleRounds = pgTable(
+  "battle_rounds",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    battleId: uuid("battle_id")
+      .notNull()
+      .references(() => battles.id, { onDelete: "cascade" }),
+    scenarioId: uuid("scenario_id")
+      .notNull()
+      .references(() => battleScenarios.id, { onDelete: "cascade" }),
+    roundIndex: integer("round_index").notNull(),
+    championOutput: text("champion_output").notNull(),
+    challengerOutput: text("challenger_output").notNull(),
+    championTokens: integer("champion_tokens"),
+    challengerTokens: integer("challenger_tokens"),
+    executedAt: timestamp("executed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_rounds_battle").on(table.battleId),
+    index("idx_rounds_scenario").on(table.scenarioId),
+  ]
+);
+
+// ─── Battle Judgments ───────────────────────────────────────────────────────
+
+export const battleJudgments = pgTable(
+  "battle_judgments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    roundId: uuid("round_id")
+      .notNull()
+      .references(() => battleRounds.id, { onDelete: "cascade" }),
+    judgeIndex: integer("judge_index").notNull(),
+    winnerId: text("winner_id", {
+      enum: ["champion", "challenger", "draw"],
+    }).notNull(),
+    scores: jsonb("scores").$type<{
+      champion: { accuracy: number; completeness: number; style: number; efficiency: number; total: number };
+      challenger: { accuracy: number; completeness: number; style: number; efficiency: number; total: number };
+    }>().notNull(),
+    reasoning: text("reasoning").notNull(),
+    confidence: integer("confidence").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_judgments_round").on(table.roundId)]
+);
+
+// ─── Arena Rankings ─────────────────────────────────────────────────────────
+
+export const arenaRankings = pgTable(
+  "arena_rankings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    skillId: uuid("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" })
+      .unique(),
+    category: text("category"),
+    wins: integer("wins").notNull().default(0),
+    losses: integer("losses").notNull().default(0),
+    draws: integer("draws").notNull().default(0),
+    winRate: real("win_rate").notNull().default(0),
+    eloRating: real("elo_rating").notNull().default(1200),
+    title: text("title"),
+    lastBattleAt: timestamp("last_battle_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_rankings_category").on(table.category),
+    index("idx_rankings_elo").on(table.eloRating),
   ]
 );

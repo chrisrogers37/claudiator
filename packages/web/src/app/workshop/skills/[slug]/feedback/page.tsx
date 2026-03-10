@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { createDb } from "@claudefather/db/client";
-import { skills, skillFeedback } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { skills, skillFeedback } from "@claudiator/db/schema";
 import { eq, desc, asc, sql } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { RatingDistribution } from "./components/rating-distribution";

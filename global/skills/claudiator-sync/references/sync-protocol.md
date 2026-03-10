@@ -1,13 +1,13 @@
 # Legacy Sync Protocol (Fallback)
 
-Compare managed files between the claudefather repo and `~/.claude/`, then interactively sync differences in either direction.
+Compare managed files between the claudiator repo and `~/.claude/`, then interactively sync differences in either direction.
 
 ## Backup Policy
 
 Before any sync that would modify files, back up existing managed files to:
 
 ```
-~/.local/share/claudefather/backups/<YYYY-MM-DD_HHMMSS>/
+~/.local/share/claudiator/backups/<YYYY-MM-DD_HHMMSS>/
 ```
 
 This location is outside `~/.claude/` so Claude Code will never discover it and confuse itself with duplicate commands.
@@ -18,7 +18,7 @@ Follow these steps exactly in order.
 
 ### Step 1: Find the Repo
 
-Read `~/.claude/.claudefather-repo` to get the repo path. If the file doesn't exist, tell the user: "Run `/claudefather-setup` from the claudefather repo, or run `./install.sh`" and stop.
+Read `~/.claude/.claudiator-repo` to get the repo path. If the file doesn't exist, tell the user: "Run `/claudiator-setup` from the claudiator repo, or run `./install.sh`" and stop.
 
 Verify the path exists and contains `install.sh`. If not, report the stale breadcrumb and stop.
 
@@ -60,11 +60,11 @@ Note: Since we can't know which side is "newer" from content alone, report diver
 Print a summary table like:
 
 ```
-Claudefather Sync Status
+Claudiator Sync Status
 ═══════════════════════════════════════════
   commands/techdebt.md           ✓ in sync
   commands/lessons.md            ✓ in sync
-  commands/claudefather-sync.md  ⚡ modified
+  commands/claudiator-sync.md  ⚡ modified
   hooks/auto-format.sh           ✓ in sync
   commands/my-custom.md          📁 local only
 ═══════════════════════════════════════════
@@ -80,7 +80,7 @@ If the user passed the argument `status`, stop here (report only, no sync).
 **Before making any changes**, create a timestamped backup:
 
 ```bash
-BACKUP_DIR=~/.local/share/claudefather/backups/$(date +%Y-%m-%d_%H%M%S)
+BACKUP_DIR=~/.local/share/claudiator/backups/$(date +%Y-%m-%d_%H%M%S)
 mkdir -p "$BACKUP_DIR"
 cp -r ~/.claude/commands "$BACKUP_DIR"/commands 2>/dev/null || true
 cp -r ~/.claude/skills "$BACKUP_DIR"/skills 2>/dev/null || true
@@ -106,7 +106,7 @@ For each file that is NOT in sync, in order:
 
 After syncing files, check `~/.claude/settings.json` against the repo's `global/recommended-permissions.json` and offer to add any missing recommended permissions.
 
-Follow the same two-sub-step procedure as Step 4.5 in `/claudefather-setup`:
+Follow the same two-sub-step procedure as Step 4.5 in `/claudiator-setup`:
 
 **Sub-step A: Deprecated Syntax Migration**
 1. Scan `permissions.allow` for `Bash(<cmd>:<args>)` patterns
@@ -129,7 +129,7 @@ This ensures every sync run surfaces deprecated syntax until migrated, and newly
 
 After permissions, check if `statusLine` and `hooks` configs are present in `~/.claude/settings.json`. These activate the hook scripts synced in Step 6.
 
-Follow the same procedure as Step 4.6 in `/claudefather-setup`:
+Follow the same procedure as Step 4.6 in `/claudiator-setup`:
 1. Read `global/settings.json` from the repo for recommended values
 2. Check if `statusLine` and `hooks` keys exist in user's settings
 3. Offer to add any that are missing (never overwrite existing values)
@@ -141,7 +141,7 @@ This ensures newly added settings defaults from updated repos are surfaced on sy
 
 After settings defaults, check if sandbox configuration is present in `~/.claude/settings.json`.
 
-Follow the same procedure as Step 4.7 in `/claudefather-setup`:
+Follow the same procedure as Step 4.7 in `/claudiator-setup`:
 1. Read `global/settings.json` from the repo for the recommended `sandbox` value
 2. Check if the `sandbox` key exists in user's settings (any value → skip)
 3. If missing, present the sandbox recommendation with tradeoffs
@@ -162,10 +162,10 @@ After walking through all differences:
 Backup
 ═══════════════════════════════════════════
 Your previous files were backed up to:
-  ~/.local/share/claudefather/backups/<timestamp>/
+  ~/.local/share/claudiator/backups/<timestamp>/
 
 To restore any file, copy it back:
-  cp ~/.local/share/claudefather/backups/<timestamp>/commands/my-file.md ~/.claude/commands/
+  cp ~/.local/share/claudiator/backups/<timestamp>/commands/my-file.md ~/.claude/commands/
 ═══════════════════════════════════════════
 ```
 
@@ -180,4 +180,4 @@ To restore any file, copy it back:
 - `~/.claude/docs/` is never synced — installed once during setup, not managed afterward.
 - If the user passes the argument `status`, only run Steps 1–4 (report, don't sync).
 - Use Read/Write tools for file operations, not shell `cp`. Exception: backup copies use shell `cp -r` since they're preservation, not reviewed changes.
-- Backups go to `~/.local/share/claudefather/backups/` — outside `~/.claude/` so Claude Code never discovers them.
+- Backups go to `~/.local/share/claudiator/backups/` — outside `~/.claude/` so Claude Code never discovers them.

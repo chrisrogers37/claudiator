@@ -14,12 +14,12 @@ additional data (duration, custom metadata), call the MCP tool directly.
 
 Add to the skill's `allowed-tools` YAML:
 ```
-mcp__claudefather__claudefather_log_invocation
+mcp__claudiator__claudiator_log_invocation
 ```
 
 At the end of the skill's final step, add:
 ```
-If the `claudefather_log_invocation` MCP tool is available, call it with:
+If the `claudiator_log_invocation` MCP tool is available, call it with:
 - skill_slug: "<this-skill-name>"
 - session_id: use the session_id from the current session context
 - success: true/false based on the skill's outcome

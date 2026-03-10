@@ -1,0 +1,181 @@
+// Centralized LLM prompt templates for the Arena system
+
+export function categorizationPrompt(rawContent: string): {
+  system: string;
+  user: string;
+} {
+  return {
+    system: `You are an AI skill analyst for Claudiator, a Claude Code skills platform. Your job is to analyze skill content and determine its purpose and category.
+
+Categories:
+- deployment: Skills for deploying applications (Railway, Vercel, Modal, etc.)
+- database: Skills for database operations (Neon, Snowflake, dbt, etc.)
+- code-review: Skills for reviewing code, PRs, security
+- planning: Skills for planning, documentation, brainstorming
+- design: Skills for design review, performance audits
+- workflow: Skills for development workflow (commits, context-resume, session-handoff, etc.)
+- utilities: General utility skills
+- configuration: Configuration management skills
+
+Output ONLY valid JSON:
+{
+  "purpose": "1-2 sentence description of what this skill does",
+  "category": "one of the categories above",
+  "matchesExisting": "slug of an existing skill this competes with, or null"
+}`,
+    user: `Analyze this skill content:\n\n${rawContent.slice(0, 15_000)}`,
+  };
+}
+
+export function fightScoringPrompt(
+  candidatePurpose: string,
+  candidateContent: string,
+  championContent: string
+): { system: string; user: string } {
+  return {
+    system: `You are a fight-worthiness evaluator for Claudiator's arena system. You score how likely a challenger skill is to beat or offer meaningful improvements over the reigning champion.
+
+Score from 0-100:
+- 0-20: Clearly inferior, no meaningful improvements
+- 21-40: Some differences but champion is clearly better
+- 41-60: Roughly equal, some areas of improvement
+- 61-80: Strong challenger with meaningful innovations
+- 81-100: Exceptional challenger likely to win
+
+Output ONLY valid JSON:
+{
+  "score": <number 0-100>,
+  "reasoning": "Brief explanation of strengths/weaknesses vs champion",
+  "keyDifferences": ["difference1", "difference2"]
+}`,
+    user: `## Challenger Purpose
+${candidatePurpose}
+
+## Challenger Content
+${candidateContent.slice(0, 10_000)}
+
+## Champion Content (current best)
+${championContent.slice(0, 10_000)}`,
+  };
+}
+
+export function scenarioGenerationPrompt(
+  skillPurpose: string,
+  category: string
+): { system: string; user: string } {
+  return {
+    system: `You are a scenario designer for Claudiator's battle arena. Generate realistic test scenarios for evaluating Claude Code skills.
+
+Each scenario should include:
+- A description of the test situation
+- Project context (what kind of project, current state)
+- A user prompt (what the user would say to trigger the skill)
+- A difficulty level
+
+Output ONLY valid JSON array:
+[
+  {
+    "description": "What this scenario tests",
+    "projectContext": "Description of the project state and context",
+    "userPrompt": "What the user would type",
+    "difficulty": "easy" | "medium" | "hard"
+  }
+]
+
+Generate exactly 3 scenarios: 1 easy, 1 medium, 1 hard.`,
+    user: `Generate battle scenarios for a skill with this purpose: "${skillPurpose}" in the "${category}" category.`,
+  };
+}
+
+export function skillExecutionPrompt(
+  skillContent: string,
+  scenario: { projectContext: string; userPrompt: string }
+): { system: string; user: string } {
+  return {
+    system: `You are Claude Code executing a skill. The skill instructions are provided below. Follow them exactly to respond to the user's request.
+
+## Skill Instructions
+${skillContent.slice(0, 20_000)}
+
+## Important
+- Respond as if you are actually executing the skill in a real session
+- Show what actions you would take, what output you would produce
+- Be thorough but concise
+- Demonstrate the skill's approach to the given scenario`,
+    user: `## Project Context
+${scenario.projectContext}
+
+## User Request
+${scenario.userPrompt}`,
+  };
+}
+
+export function judgingPrompt(): string {
+  return `You are a judge in Claudiator's battle arena. You evaluate two skill outputs for the same scenario and determine which one is better.
+
+Score each output on 4 dimensions (0-25 each, total 0-100):
+- accuracy: Correctness and relevance of the response
+- completeness: How thoroughly the scenario is addressed
+- style: Quality of formatting, communication, and user experience
+- efficiency: Conciseness, avoiding unnecessary steps
+
+Output ONLY valid JSON:
+{
+  "winner": "champion" | "challenger" | "draw",
+  "scores": {
+    "champion": { "accuracy": <0-25>, "completeness": <0-25>, "style": <0-25>, "efficiency": <0-25>, "total": <0-100> },
+    "challenger": { "accuracy": <0-25>, "completeness": <0-25>, "style": <0-25>, "efficiency": <0-25>, "total": <0-100> }
+  },
+  "reasoning": "Brief explanation of why you chose the winner",
+  "confidence": <0-100>
+}`;
+}
+
+export function judgingUserPrompt(
+  scenario: { description: string; projectContext: string; userPrompt: string },
+  championOutput: string,
+  challengerOutput: string
+): string {
+  return `## Scenario
+${scenario.description}
+
+## Project Context
+${scenario.projectContext}
+
+## User Request
+${scenario.userPrompt}
+
+## Champion Output
+${championOutput.slice(0, 8_000)}
+
+## Challenger Output
+${challengerOutput.slice(0, 8_000)}`;
+}
+
+export function evolutionPrompt(
+  championContent: string,
+  challengerContent: string,
+  battleResults: string
+): { system: string; user: string } {
+  return {
+    system: `You are a skill evolution engine for Claudiator. After a close battle, you analyze both skills and create an evolved version that combines the best techniques from both.
+
+The evolved skill should:
+1. Start with the winner's structure as the base
+2. Incorporate the strongest techniques from the loser
+3. Fix any weaknesses identified during the battle
+4. Maintain the same format (SKILL.md with YAML frontmatter)
+
+Output the complete evolved SKILL.md content, ready to be used as a new version.`,
+    user: `## Champion Skill (winner)
+${championContent.slice(0, 15_000)}
+
+## Challenger Skill (close loser)
+${challengerContent.slice(0, 15_000)}
+
+## Battle Results
+${battleResults}
+
+Create an evolved version that combines the best of both skills.`,
+  };
+}

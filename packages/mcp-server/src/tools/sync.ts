@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skills, skillVersions, activityEvents } from "@claudefather/db/schema";
+import { skills, skillVersions, activityEvents } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const syncSchema = z.object({
@@ -108,7 +108,7 @@ export async function syncSkills(
       },
     })
     .catch((err: Error) => {
-      console.error("[claudefather] sync event logging error:", err.message);
+      console.error("[claudiator] sync event logging error:", err.message);
     });
 
   return {

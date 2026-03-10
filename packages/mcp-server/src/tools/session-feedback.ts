@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skillFeedback } from "@claudefather/db/schema";
+import { skillFeedback } from "@claudiator/db/schema";
 
 export const sessionFeedbackSchema = z.object({
   session_id: z

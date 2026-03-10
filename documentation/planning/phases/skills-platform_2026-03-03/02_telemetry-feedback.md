@@ -15,7 +15,7 @@
 
 ## Context
 
-The claudefather maintainer is flying blind on skill adoption. With 38 skills distributed to ~20 users, there is zero visibility into which skills are actually used, which ones work well, and which are broken. Feedback today is limited to hallway conversations. This phase builds the telemetry and feedback data layer that Phase 04 (Workshop UI) and Phase 05 (Team Dashboard) will visualize. It adds database tables, MCP tools for logging invocations and collecting feedback, API endpoints for the web app, and a PostToolUse hook for automatic invocation detection -- all without capturing any sensitive content (no prompts, no code, no file paths).
+The claudiator maintainer is flying blind on skill adoption. With 38 skills distributed to ~20 users, there is zero visibility into which skills are actually used, which ones work well, and which are broken. Feedback today is limited to hallway conversations. This phase builds the telemetry and feedback data layer that Phase 04 (Workshop UI) and Phase 05 (Team Dashboard) will visualize. It adds database tables, MCP tools for logging invocations and collecting feedback, API endpoints for the web app, and a PostToolUse hook for automatic invocation detection -- all without capturing any sensitive content (no prompts, no code, no file paths).
 
 ---
 
@@ -75,7 +75,7 @@ export const skillFeedback = pgTable("skill_feedback", {
 
 **Note:** `sync_events` is created in Phase 03 (Skill Versioning & Sync) since that phase owns all sync operations.
 
-After adding the schema, generate the migration with `npx drizzle-kit generate` from the `packages/db/` directory. Export the new tables from `packages/db/src/schema.ts` so they're available to both the MCP server and web app via `@claudefather/db/schema`.
+After adding the schema, generate the migration with `npx drizzle-kit generate` from the `packages/db/` directory. Export the new tables from `packages/db/src/schema.ts` so they're available to both the MCP server and web app via `@claudiator/db/schema`.
 
 ### Step 2: MCP Telemetry Tools
 
@@ -85,8 +85,8 @@ Add two new tools to the Railway-hosted MCP server. Phase 01 establishes the MCP
 
 ```typescript
 import { z } from "zod";
-import { skillInvocations } from "@claudefather/db/schema";
-import type { Db } from "@claudefather/db/client";
+import { skillInvocations } from "@claudiator/db/schema";
+import type { Db } from "@claudiator/db/client";
 
 export const logInvocationSchema = z.object({
   skill_slug: z.string().describe("The skill's directory name (e.g., 'session-handoff', 'product-enhance')"),
@@ -117,7 +117,7 @@ export async function handleLogInvocation(
       durationMs: input.duration_ms ?? null,
     })
     .catch((err: Error) => {
-      console.error("[claudefather-mcp-server] telemetry error:", err.message);
+      console.error("[claudiator-mcp-server] telemetry error:", err.message);
     });
 
   return "Invocation logged.";
@@ -132,8 +132,8 @@ export async function handleLogInvocation(
 
 ```typescript
 import { z } from "zod";
-import { skillFeedback } from "@claudefather/db/schema";
-import type { Db } from "@claudefather/db/client";
+import { skillFeedback } from "@claudiator/db/schema";
+import type { Db } from "@claudiator/db/client";
 
 const ratingSchema = z.object({
   skill_slug: z.string(),
@@ -185,7 +185,7 @@ import { sessionFeedbackSchema, handleSessionFeedback } from "./tools/session-fe
 // `db` is the Drizzle client, `config.user` is the authenticated user
 
 server.tool(
-  "claudefather_log_invocation",
+  "claudiator_log_invocation",
   "Log a skill invocation for usage telemetry. Fire-and-forget -- returns immediately.",
   logInvocationSchema.shape,
   async (input) => {
@@ -195,7 +195,7 @@ server.tool(
 );
 
 server.tool(
-  "claudefather_session_feedback",
+  "claudiator_session_feedback",
   "Submit end-of-session skill ratings and feedback.",
   sessionFeedbackSchema.shape,
   async (input) => {
@@ -211,15 +211,15 @@ The MCP server connects directly to Neon PostgreSQL (same database as the web ap
 
 Add two read-only API routes to the Next.js web app for the future Dashboard (Phase 05). Write operations (logging invocations, submitting feedback) are handled exclusively by MCP tools — no duplicate write API endpoints needed since only Claude Code clients submit telemetry.
 
-Auth pattern: Bearer token validation using `validateToken()` from `@claudefather/db/auth`, matching the Phase 01 API route pattern.
+Auth pattern: Bearer token validation using `validateToken()` from `@claudiator/db/auth`, matching the Phase 01 API route pattern.
 
 **New file:** `packages/web/src/app/api/telemetry/stats/[skillSlug]/route.ts`
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
-import { createDb } from "@claudefather/db/client";
-import { validateToken } from "@claudefather/db/auth";
-import { skillInvocations, skillFeedback } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { validateToken } from "@claudiator/db/auth";
+import { skillInvocations, skillFeedback } from "@claudiator/db/schema";
 import { eq, count, avg, desc, isNotNull, and, sql } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -284,9 +284,9 @@ export async function GET(
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
-import { createDb } from "@claudefather/db/client";
-import { validateToken } from "@claudefather/db/auth";
-import { skillInvocations, skillFeedback } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { validateToken } from "@claudiator/db/auth";
+import { skillInvocations, skillFeedback } from "@claudiator/db/schema";
 import { count, desc, gte, avg, sql } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -350,19 +350,19 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-**Removed from plan:** `POST /api/telemetry/invocation` and `POST /api/telemetry/feedback` write endpoints. The MCP tools (`claudefather_log_invocation`, `claudefather_session_feedback`) handle all write operations directly to the database. No need for duplicate write paths since only Claude Code clients submit telemetry.
+**Removed from plan:** `POST /api/telemetry/invocation` and `POST /api/telemetry/feedback` write endpoints. The MCP tools (`claudiator_log_invocation`, `claudiator_session_feedback`) handle all write operations directly to the database. No need for duplicate write paths since only Claude Code clients submit telemetry.
 
 ### Step 4: PostToolUse Hook for Automatic Invocation Detection
 
-This is the key design decision: rather than modifying every SKILL.md to call `claudefather_log_invocation`, use a PostToolUse hook that detects skill invocations automatically.
+This is the key design decision: rather than modifying every SKILL.md to call `claudiator_log_invocation`, use a PostToolUse hook that detects skill invocations automatically.
 
 **How it works:** Claude Code's hook system provides a `PostToolUse` event with `tool_name`, `tool_input`, and `session_id` on stdin. When `tool_name` is `"Skill"`, the `tool_input` contains the skill name being invoked. The hook detects this and calls the MCP telemetry tool.
 
-**However**, there is a critical constraint: hooks are shell scripts. They cannot call MCP tools directly. A hook can only return JSON to Claude Code; it cannot invoke `claudefather_log_invocation` on its own. Two approaches are viable:
+**However**, there is a critical constraint: hooks are shell scripts. They cannot call MCP tools directly. A hook can only return JSON to Claude Code; it cannot invoke `claudiator_log_invocation` on its own. Two approaches are viable:
 
 **Approach A (Recommended): Hook writes to a local log file, MCP tool reads it.**
 
-The PostToolUse hook appends skill invocations to a local file (`/tmp/claudefather-session-telemetry.jsonl`). At session end (during `/session-handoff`), the MCP `claudefather_log_invocation` tool is called for each entry. This is simple, reliable, and does not require the hook to make network calls.
+The PostToolUse hook appends skill invocations to a local file (`/tmp/claudiator-session-telemetry.jsonl`). At session end (during `/session-handoff`), the MCP `claudiator_log_invocation` tool is called for each entry. This is simple, reliable, and does not require the hook to make network calls.
 
 **Approach B: Hook calls the API directly via curl.**
 
@@ -378,7 +378,7 @@ The hook uses `curl` to POST directly to the API, bypassing MCP entirely. This i
 #
 # Detects skill invocations and logs them to a session-local JSONL file.
 # The /session-handoff skill reads this file and submits telemetry
-# via the claudefather_log_invocation MCP tool.
+# via the claudiator_log_invocation MCP tool.
 #
 # This hook ONLY logs Skill tool invocations. All other tools are ignored.
 # No prompt content, code, or file paths are captured.
@@ -406,7 +406,7 @@ RESULT=$(printf '%s' "$INPUT" | jq -r '
 IFS=$'\t' read -r SKILL_SLUG SESSION_ID SUCCESS <<< "$RESULT"
 
 # Append to session telemetry file (JSONL format)
-TELEMETRY_FILE="/tmp/claudefather-telemetry-${SESSION_ID}.jsonl"
+TELEMETRY_FILE="/tmp/claudiator-telemetry-${SESSION_ID}.jsonl"
 
 printf '{"skill_slug":"%s","session_id":"%s","success":%s,"invoked_at":"%s"}\n' \
   "$SKILL_SLUG" "$SESSION_ID" "$SUCCESS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -425,7 +425,7 @@ exit 0
 
 Add the PostToolUse telemetry hook to `global/settings.json`. Insert alongside the existing `PostToolUse` auto-format hook.
 
-**File:** `global/settings.json` (at `/Users/chris/Projects/claudefather/global/settings.json`)
+**File:** `global/settings.json` (at `/Users/chris/Projects/claudiator/global/settings.json`)
 
 **Before** (lines 44-55):
 
@@ -474,7 +474,7 @@ The `matcher: "Skill"` ensures the telemetry hook only fires for Skill tool invo
 
 Modify `/session-handoff` to add two new steps between the existing Step 3 (Changelog) and Step 4 (Write Handoff File).
 
-**File:** `global/skills/session-handoff/SKILL.md` (at `/Users/chris/Projects/claudefather/global/skills/session-handoff/SKILL.md`)
+**File:** `global/skills/session-handoff/SKILL.md` (at `/Users/chris/Projects/claudiator/global/skills/session-handoff/SKILL.md`)
 
 **Changes to YAML frontmatter:** Add MCP tool permissions to `allowed-tools`:
 
@@ -487,26 +487,26 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(wc *), Bash(date *), Re
 **After:**
 
 ```yaml
-allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(wc *), Bash(date *), Bash(cat *), Read, Write, Edit, Glob, Grep, mcp__claudefather__claudefather_log_invocation, mcp__claudefather__claudefather_session_feedback
+allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(wc *), Bash(date *), Bash(cat *), Read, Write, Edit, Glob, Grep, mcp__claudiator__claudiator_log_invocation, mcp__claudiator__claudiator_session_feedback
 ```
 
-Note: `Bash(cat *)` is added because the hook reads the telemetry JSONL file. The MCP tool names use the `mcp__<server>__<tool>` format that Claude Code requires for `allowed-tools` patterns matching MCP tools. The server name `claudefather` comes from the `mcpServers` key in settings.json (Phase 01 establishes this).
+Note: `Bash(cat *)` is added because the hook reads the telemetry JSONL file. The MCP tool names use the `mcp__<server>__<tool>` format that Claude Code requires for `allowed-tools` patterns matching MCP tools. The server name `claudiator` comes from the `mcpServers` key in settings.json (Phase 01 establishes this).
 
 **Add new Step 3.5: Submit Telemetry** (insert between current Step 3 and Step 4):
 
 ```markdown
 ## Step 3.5: Submit Telemetry
 
-Check if the claudefather MCP server is available by checking if the
-`claudefather_log_invocation` tool exists. If it does not, skip this step silently.
+Check if the claudiator MCP server is available by checking if the
+`claudiator_log_invocation` tool exists. If it does not, skip this step silently.
 
 Read the session telemetry file:
 - Determine session_id from the current session (available in hook events, or use
   a fallback: `date +%Y%m%d%H%M%S` combined with a random suffix)
-- Read `/tmp/claudefather-telemetry-<session_id>.jsonl` if it exists
+- Read `/tmp/claudiator-telemetry-<session_id>.jsonl` if it exists
 - Parse each line as a JSON object
 
-For each invocation record, call `claudefather_log_invocation` with:
+For each invocation record, call `claudiator_log_invocation` with:
 - `skill_slug`: from the record
 - `session_id`: from the record
 - `success`: from the record (may be null)
@@ -538,13 +538,13 @@ Or just: skip
 ```
 
 Parse the user's response. If they provide ratings:
-- Call `claudefather_session_feedback` with the session_id and ratings array
+- Call `claudiator_session_feedback` with the session_id and ratings array
 - Confirm: "Feedback submitted. Thanks!"
 
 If the user says "skip" or provides no input within one prompt, move on immediately.
 This step gets ONE prompt -- never ask follow-up questions about feedback.
 
-If the claudefather MCP server is not available, skip this step silently.
+If the claudiator MCP server is not available, skip this step silently.
 ```
 
 **Update the Rules section** to add:
@@ -560,9 +560,9 @@ Following the same pattern as the PreToolUse hook (documented in archive Phase 0
 
 1. `install.sh` -- after the PreToolUse check (around line 286), add a check for `hooks.PostToolUse` containing the telemetry matcher. If `PostToolUse` exists but has no Skill matcher, offer to add it.
 
-2. `.claude/commands/claudefather-setup.md` -- in the settings defaults section, add a check for the PostToolUse telemetry hook alongside the PreToolUse check.
+2. `.claude/commands/claudiator-setup.md` -- in the settings defaults section, add a check for the PostToolUse telemetry hook alongside the PreToolUse check.
 
-3. `global/commands/claudefather-sync.md` -- same pattern as setup.
+3. `global/commands/claudiator-sync.md` -- same pattern as setup.
 
 The check should be:
 
@@ -600,12 +600,12 @@ additional data (duration, custom metadata), call the MCP tool directly.
 
 Add to the skill's `allowed-tools` YAML:
 ```
-mcp__claudefather__claudefather_log_invocation
+mcp__claudiator__claudiator_log_invocation
 ```
 
 At the end of the skill's final step, add:
 ```
-If the `claudefather_log_invocation` MCP tool is available, call it with:
+If the `claudiator_log_invocation` MCP tool is available, call it with:
 - skill_slug: "<this-skill-name>"
 - session_id: use the session_id from the current session context
 - success: true/false based on the skill's outcome
@@ -626,28 +626,28 @@ This file is a reference -- skill authors read it if they want to add detailed t
 
 ### Step 9: MCP Server Permission Category
 
-Add a new permission category to `global/recommended-permissions.json` for users who opt into the claudefather MCP server.
+Add a new permission category to `global/recommended-permissions.json` for users who opt into the claudiator MCP server.
 
-**File:** `global/recommended-permissions.json` (at `/Users/chris/Projects/claudefather/global/recommended-permissions.json`)
+**File:** `global/recommended-permissions.json` (at `/Users/chris/Projects/claudiator/global/recommended-permissions.json`)
 
 Add after the `"sandbox-extensions"` category (before the closing `]`):
 
 ```json
     {
-      "id": "claudefather-mcp",
-      "name": "Claudefather Platform",
-      "description": "MCP tool permissions for the claudefather skills platform (telemetry, feedback, sync).",
+      "id": "claudiator-mcp",
+      "name": "Claudiator Platform",
+      "description": "MCP tool permissions for the claudiator skills platform (telemetry, feedback, sync).",
       "default": false,
       "permissions": [
-        "mcp__claudefather__claudefather_log_invocation",
-        "mcp__claudefather__claudefather_session_feedback",
-        "mcp__claudefather__claudefather_sync",
-        "mcp__claudefather__claudefather_check_updates"
+        "mcp__claudiator__claudiator_log_invocation",
+        "mcp__claudiator__claudiator_session_feedback",
+        "mcp__claudiator__claudiator_sync",
+        "mcp__claudiator__claudiator_check_updates"
       ]
     }
 ```
 
-Note: `claudefather_sync` and `claudefather_check_updates` are Phase 01 tools. Including them here ensures the permission category covers all MCP tools in one opt-in.
+Note: `claudiator_sync` and `claudiator_check_updates` are Phase 01 tools. Including them here ensures the permission category covers all MCP tools in one opt-in.
 
 ---
 
@@ -693,7 +693,7 @@ Manual verification (hooks are shell scripts):
 1. **Skill invocation detected:**
    ```bash
    echo '{"tool_name":"Skill","tool_input":{"skill":"product-enhance"},"session_id":"test123","tool_response":{"success":true}}' | ~/.claude/hooks/posttooluse-telemetry.sh
-   cat /tmp/claudefather-telemetry-test123.jsonl
+   cat /tmp/claudiator-telemetry-test123.jsonl
    ```
    Expected: one JSONL line with skill_slug, session_id, success, invoked_at
 
@@ -709,10 +709,10 @@ Manual verification (hooks are shell scripts):
 
 ### Integration Test (Manual)
 
-1. Start a Claude Code session with the claudefather MCP server configured
+1. Start a Claude Code session with the claudiator MCP server configured
 2. Run `/product-enhance` (or any skill)
 3. Run `/session-handoff`
-4. Verify: telemetry file created at `/tmp/claudefather-telemetry-<session_id>.jsonl`
+4. Verify: telemetry file created at `/tmp/claudiator-telemetry-<session_id>.jsonl`
 5. Verify: session-handoff offered feedback prompt
 6. Provide a rating
 7. Check API: `GET /api/telemetry/stats/product-enhance` returns the invocation and feedback
@@ -728,11 +728,11 @@ Add under `[Unreleased]`:
 ```markdown
 ### Added
 - **Usage telemetry schema** — Two new Drizzle tables: `skill_invocations` (per-invocation logging) and `skill_feedback` (end-of-session ratings). Indexed for Workshop and Dashboard queries. `sync_events` deferred to Phase 03.
-- **`claudefather_log_invocation` MCP tool** — Fire-and-forget skill invocation logging. Called by the PostToolUse hook or explicitly by skills that want to report duration/metadata.
-- **`claudefather_session_feedback` MCP tool** — End-of-session skill ratings (1-5) with optional comments.
+- **`claudiator_log_invocation` MCP tool** — Fire-and-forget skill invocation logging. Called by the PostToolUse hook or explicitly by skills that want to report duration/metadata.
+- **`claudiator_session_feedback` MCP tool** — End-of-session skill ratings (1-5) with optional comments.
 - **PostToolUse telemetry hook** — `posttooluse-telemetry.sh` automatically detects Skill tool invocations and logs them to a session-local JSONL file. Zero-touch for skill authors — no SKILL.md changes needed.
 - **Telemetry API endpoints (read-only)** — GET `/api/telemetry/stats/:skillSlug`, GET `/api/telemetry/overview`. Write operations handled exclusively by MCP tools.
-- **Claudefather Platform permission category** — New opt-in category in `recommended-permissions.json` for MCP tool auto-approval.
+- **Claudiator Platform permission category** — New opt-in category in `recommended-permissions.json` for MCP tool auto-approval.
 
 ### Changed
 - **`/session-handoff` telemetry integration** — New Steps 3.5 (submit telemetry) and 3.6 (collect feedback) between changelog and handoff file writing. Telemetry submission is silent; feedback collection is one-prompt opt-in.
@@ -751,7 +751,7 @@ No changes needed in this phase. The MCP server and platform features are docume
 | MCP server not configured | Telemetry hook writes to local file; session-handoff skips MCP calls silently |
 | MCP server configured but Railway down | `handleLogInvocation` swallows error; session-handoff reports "could not submit" but does not fail |
 | Very long session (100+ skill invocations) | JSONL file grows linearly; batch submission handles all entries |
-| Concurrent sessions (worktrees) | Each session has unique session_id; telemetry files are per-session (`/tmp/claudefather-telemetry-<session_id>.jsonl`) |
+| Concurrent sessions (worktrees) | Each session has unique session_id; telemetry files are per-session (`/tmp/claudiator-telemetry-<session_id>.jsonl`) |
 | User declines MCP permission | MCP tools not available; hook still writes local file but session-handoff cannot submit |
 | Skill invocation with no tool_response | success defaults to null |
 | Malformed hook input (missing fields) | jq returns "skip"; hook exits 0 silently |
@@ -773,8 +773,8 @@ No changes needed in this phase. The MCP server and platform features are docume
 
 - [ ] Drizzle schema adds `skill_invocations` and `skill_feedback` tables (sync_events deferred to Phase 03)
 - [ ] Migration generated via `drizzle-kit generate`
-- [ ] `claudefather_log_invocation` MCP tool registered and returns immediately
-- [ ] `claudefather_session_feedback` MCP tool registered and awaits response
+- [ ] `claudiator_log_invocation` MCP tool registered and returns immediately
+- [ ] `claudiator_session_feedback` MCP tool registered and awaits response
 - [ ] GET `/api/telemetry/stats/:skillSlug` returns correct aggregations (Drizzle queries)
 - [ ] GET `/api/telemetry/overview` returns 30-day window stats (Drizzle queries)
 - [ ] Both read endpoints return 401 for unauthenticated requests (Bearer token validation)
@@ -785,7 +785,7 @@ No changes needed in this phase. The MCP server and platform features are docume
 - [ ] `/session-handoff` reads telemetry JSONL and submits via MCP
 - [ ] `/session-handoff` prompts for feedback (one prompt only)
 - [ ] `/session-handoff` skips telemetry/feedback silently if MCP unavailable
-- [ ] `recommended-permissions.json` includes `claudefather-mcp` category
+- [ ] `recommended-permissions.json` includes `claudiator-mcp` category
 - [ ] install.sh/setup/sync offer PostToolUse telemetry hook to existing users
 - [ ] No prompt content, code, or file paths captured in telemetry
 - [ ] Feedback comments stripped of HTML, capped at 1000 chars

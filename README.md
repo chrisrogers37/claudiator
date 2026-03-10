@@ -1,4 +1,4 @@
-# the-claudefather
+# the-claudiator
 
 Centralized skills platform for Claude Code. Registry-backed skill distribution with versioning, telemetry, and feedback.
 
@@ -13,20 +13,20 @@ packages/
 
 ## Skills Platform (Beta)
 
-Claudefather includes a centralized skills registry that replaces git-clone sync with a database-backed distribution system.
+Claudiator includes a centralized skills registry that replaces git-clone sync with a database-backed distribution system.
 
 ### Setup
 
-1. Log in at https://claudefather.vercel.app with your GitHub account
+1. Log in at https://claudiator.vercel.app with your GitHub account
 2. Generate an API key on the dashboard
 3. Add the MCP server to your `~/.claude/settings.json`:
 
 ```json
 {
   "mcpServers": {
-    "claudefather": {
+    "claudiator": {
       "type": "http",
-      "url": "https://mcp.the-claudefather.railway.app/mcp",
+      "url": "https://mcp.the-claudiator.railway.app/mcp",
       "headers": {
         "Authorization": "Bearer <your-token>"
       }
@@ -35,7 +35,7 @@ Claudefather includes a centralized skills registry that replaces git-clone sync
 }
 ```
 
-4. Restart Claude Code. The `claudefather_sync` tool will be available.
+4. Restart Claude Code. The `claudiator_sync` tool will be available.
 
 No local installation required — the MCP server is hosted on Railway.
 
@@ -43,17 +43,17 @@ No local installation required — the MCP server is hosted on Railway.
 
 | Tool | Description |
 |------|-------------|
-| `claudefather_sync` | Fetch latest skills from registry and write to `~/.claude/skills/` |
-| `claudefather_check_updates` | Check for available skill updates |
-| `claudefather_whoami` | Show your identity and token status |
+| `claudiator_sync` | Fetch latest skills from registry and write to `~/.claude/skills/` |
+| `claudiator_check_updates` | Check for available skill updates |
+| `claudiator_whoami` | Show your identity and token status |
 
 ## Development
 
 ```bash
 pnpm install
-pnpm --filter @claudefather/db run build
-pnpm --filter @claudefather/mcp-server run build
-pnpm --filter @claudefather/web run dev
+pnpm --filter @claudiator/db run build
+pnpm --filter @claudiator/mcp-server run build
+pnpm --filter @claudiator/web run dev
 ```
 
 ### Environment Variables

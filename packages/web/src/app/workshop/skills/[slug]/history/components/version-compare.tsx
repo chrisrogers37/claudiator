@@ -1,5 +1,5 @@
-import { createDb } from "@claudefather/db/client";
-import { skillVersions } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { skillVersions } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 import { DiffViewer } from "@/components/workshop/diff-viewer";
 

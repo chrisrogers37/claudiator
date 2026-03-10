@@ -18,7 +18,7 @@ export async function fetchSource(
 
 async function fetchWebPage(url: string): Promise<string> {
   const response = await fetch(url, {
-    headers: { "User-Agent": "claudefather-intelligence-pipeline/1.0" },
+    headers: { "User-Agent": "claudiator-intelligence-pipeline/1.0" },
     signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
@@ -86,7 +86,7 @@ async function fetchGitHubRepo(
 
 function githubHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
-    "User-Agent": "claudefather-intelligence-pipeline/1.0",
+    "User-Agent": "claudiator-intelligence-pipeline/1.0",
     Accept: "application/vnd.github.v3+json",
   };
   if (process.env.GITHUB_TOKEN) {
