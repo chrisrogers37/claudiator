@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skillInvocations } from "@claudefather/db/schema";
+import { skillInvocations } from "@claudiator/db/schema";
 
 export const logInvocationSchema = z.object({
   skill_slug: z
@@ -35,7 +35,7 @@ export async function logInvocation(
       durationMs: args.duration_ms ?? null,
     })
     .catch((err: Error) => {
-      console.error("[claudefather] telemetry error:", err.message);
+      console.error("[claudiator] telemetry error:", err.message);
     });
 
   return {

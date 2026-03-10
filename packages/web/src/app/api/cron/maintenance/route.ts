@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createDb } from "@claudefather/db/client";
+import { createDb } from "@claudiator/db/client";
 import { runQualityControl } from "@/lib/pipeline/quality-control";
 
 export async function POST(request: Request) {

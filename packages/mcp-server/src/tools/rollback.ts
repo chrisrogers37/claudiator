@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skills, skillVersions, activityEvents } from "@claudefather/db/schema";
+import { skills, skillVersions, activityEvents } from "@claudiator/db/schema";
 import { eq, and, desc, lt } from "drizzle-orm";
 
 export const rollbackSchema = z.object({
@@ -149,7 +149,7 @@ export async function rollback(
       },
     })
     .catch((err: Error) => {
-      console.error("[claudefather] rollback event logging error:", err.message);
+      console.error("[claudiator] rollback event logging error:", err.message);
     });
 
   return {

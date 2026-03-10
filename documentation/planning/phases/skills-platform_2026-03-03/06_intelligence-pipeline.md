@@ -11,7 +11,7 @@
 ## Implementation Status: COMPLETE (2026-03-07)
 
 **Branch:** `implement/intelligence-pipeline`
-**Worktree:** `/Users/chris/Projects/the-claudefather-phase06`
+**Worktree:** `/Users/chris/Projects/the-claudiator-phase06`
 
 ### Sub-Phase Summary
 
@@ -223,7 +223,7 @@ export async function fetchSource(source: SourceConfig): Promise<string> {
 
 async function fetchWebPage(url: string): Promise<string> {
     const response = await fetch(url, {
-        headers: { 'User-Agent': 'claudefather-intelligence-pipeline/1.0' },
+        headers: { 'User-Agent': 'claudiator-intelligence-pipeline/1.0' },
         signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
@@ -288,7 +288,7 @@ async function fetchGitHubRepo(
 
 function githubHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
-        'User-Agent': 'claudefather-intelligence-pipeline/1.0',
+        'User-Agent': 'claudiator-intelligence-pipeline/1.0',
         'Accept': 'application/vnd.github.v3+json',
     };
     if (process.env.GITHUB_TOKEN) {
@@ -442,13 +442,13 @@ function buildUserPrompt(
 
 **Step 5: Distillation Prompt Design**
 
-`services/distillation/prompt.ts` -- This is the critical component. The system prompt must encode the claudefather skill ecosystem knowledge:
+`services/distillation/prompt.ts` -- This is the critical component. The system prompt must encode the claudiator skill ecosystem knowledge:
 
 ```typescript
 export function buildDistillationPrompt(): string {
-    return `You are an intelligence analyst for "claudefather," a Claude Code skills platform that manages ${SKILL_COUNT} skills for a team of ~20 developers. Your job is to analyze content from AI/Claude ecosystem sources and determine what is relevant to maintaining and improving these skills.
+    return `You are an intelligence analyst for "claudiator," a Claude Code skills platform that manages ${SKILL_COUNT} skills for a team of ~20 developers. Your job is to analyze content from AI/Claude ecosystem sources and determine what is relevant to maintaining and improving these skills.
 
-## The Claudefather Skill Ecosystem
+## The Claudiator Skill Ecosystem
 
 ### Skill Categories and Descriptions
 ${SKILL_CATALOG}
@@ -495,7 +495,7 @@ Analyze the provided content and output ONLY valid JSON in this format:
 {
     "relevance": "high" | "medium" | "low" | "none",
     "title": "Concise title describing what changed",
-    "summary": "2-4 sentence summary: what changed, why it matters for claudefather, what action to take",
+    "summary": "2-4 sentence summary: what changed, why it matters for claudiator, what action to take",
     "relevance_tags": ["tag1", "tag2"],
     "urgency": "immediate" | "soon" | "informational",
     "affected_skills": [
@@ -527,7 +527,7 @@ const SKILL_CATALOG = `
 **Planning & Documentation:** product-enhance (gap analysis + phased plans), product-brainstorm (divergent ideation), implement-plan (execute design docs), tech-debt (debt scan + remediation), docs-review (documentation audit), investigate-app (production debugging)
 **Design & Performance:** design-review (visual audit with screenshots), frontend-performance-audit (render cascade analysis)
 **Development Workflow:** quick-commit, commit-push-pr (git workflows), context-resume + session-handoff (session continuity), find-skills (skill discovery), worktree (parallel sessions), lessons (learning capture)
-**Utilities:** notes (persistent notes), notifications (macOS alerts, context-only), claudefather-migrate (legacy cleanup)
+**Utilities:** notes (persistent notes), notifications (macOS alerts, context-only), claudiator-migrate (legacy cleanup)
 **Platform:** cache-audit (prompt cache diagnostics)
 `;
 ```
@@ -995,7 +995,7 @@ export interface AuditLogEntry {
 
 ```markdown
 ### Added
-- **Intelligence Pipeline** -- automated monitoring of Anthropic docs, Claude Code changelog, GitHub repos, and MCP ecosystem. Detects content changes via SHA-256 hashing, distills through Claude Haiku with claudefather-aware system prompt, produces actionable learnings with proposed skill changes. All proposals staged for admin review in Workshop UI -- no autonomous modifications.
+- **Intelligence Pipeline** -- automated monitoring of Anthropic docs, Claude Code changelog, GitHub repos, and MCP ecosystem. Detects content changes via SHA-256 hashing, distills through Claude Haiku with claudiator-aware system prompt, produces actionable learnings with proposed skill changes. All proposals staged for admin review in Workshop UI -- no autonomous modifications.
 - **Source monitoring** -- 10 pre-configured sources (docs.anthropic.com, anthropic.com/blog, Claude Code changelog, MCP spec/servers, Claude Code GitHub, Anthropic Cookbook, Claude Code SDK) with daily/weekly check frequencies.
 - **Learning quality control** -- automated 90-day staleness archival, trigram-based deduplication, and snapshot retention pruning (30 snapshots per source).
 - **Learnings API** -- REST endpoints for listing, filtering, status updates, and statistics. Admin-only mutation operations with full audit logging.

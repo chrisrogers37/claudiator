@@ -1,7 +1,7 @@
 ---
 name: session-handoff
 description: "End-of-session capture. Scans git/PR/plan activity, captures learnings to MEMORY.md or global notes, catches up changelog, and writes a context-resume file for the next session. Counterpart to /context-resume."
-allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(wc *), Bash(date *), Bash(cat *), Read, Write, Edit, Glob, Grep, mcp__claudefather__claudefather_log_invocation, mcp__claudefather__claudefather_session_feedback
+allowed-tools: Bash(git *), Bash(gh *), Bash(ls *), Bash(wc *), Bash(date *), Bash(cat *), Read, Write, Edit, Glob, Grep, mcp__claudiator__claudiator_log_invocation, mcp__claudiator__claudiator_session_feedback
 ---
 
 # Session Handoff
@@ -50,15 +50,15 @@ If none found, skip silently.
 
 ## Step 3.5: Submit Telemetry
 
-Check if the claudefather MCP server is available by checking if the
-`claudefather_log_invocation` tool exists. If it does not, skip this step silently.
+Check if the claudiator MCP server is available by checking if the
+`claudiator_log_invocation` tool exists. If it does not, skip this step silently.
 
 Read the session telemetry file:
 - Determine session_id from the current session context
-- Read `/tmp/claudefather-telemetry-<session_id>.jsonl` if it exists
+- Read `/tmp/claudiator-telemetry-<session_id>.jsonl` if it exists
 - Parse each line as a JSON object
 
-For each invocation record, call `claudefather_log_invocation` with:
+For each invocation record, call `claudiator_log_invocation` with:
 - `skill_slug`: from the record
 - `session_id`: from the record
 - `success`: from the record (may be null)
@@ -86,13 +86,13 @@ Or just: skip
 ```
 
 Parse the user's response. If they provide ratings:
-- Call `claudefather_session_feedback` with the session_id and ratings array
+- Call `claudiator_session_feedback` with the session_id and ratings array
 - Confirm: "Feedback submitted. Thanks!"
 
 If the user says "skip" or provides no input within one prompt, move on immediately.
 This step gets ONE prompt — never ask follow-up questions about feedback.
 
-If the claudefather MCP server is not available, skip this step silently.
+If the claudiator MCP server is not available, skip this step silently.
 
 ## Step 4: Write Handoff File
 

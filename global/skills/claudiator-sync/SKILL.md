@@ -1,6 +1,6 @@
 ---
-name: claudefather-sync
-description: "Sync skills from the claudefather registry. Checks for updates, shows diffs, and applies approved changes. Supports rollback and version pinning."
+name: claudiator-sync
+description: "Sync skills from the claudiator registry. Checks for updates, shows diffs, and applies approved changes. Supports rollback and version pinning."
 allowed-tools:
   - "Bash(git *)"
   - "Bash(diff *)"
@@ -10,25 +10,25 @@ allowed-tools:
   - "Bash(mkdir *)"
   - "Bash(cp *)"
   - "Bash(chmod *)"
-  - "mcp__claudefather__claudefather_check_updates"
-  - "mcp__claudefather__claudefather_sync"
-  - "mcp__claudefather__claudefather_rollback"
-  - "mcp__claudefather__claudefather_pin"
-  - "mcp__claudefather__claudefather_unpin"
+  - "mcp__claudiator__claudiator_check_updates"
+  - "mcp__claudiator__claudiator_sync"
+  - "mcp__claudiator__claudiator_rollback"
+  - "mcp__claudiator__claudiator_pin"
+  - "mcp__claudiator__claudiator_unpin"
   - "Read(*)"
   - "Write(*)"
   - "Glob(*)"
   - "Grep(*)"
 ---
 
-# Claudefather Sync
+# Claudiator Sync
 
-Check for skill updates from the claudefather registry and apply approved changes. Supports rollback and version pinning.
+Check for skill updates from the claudiator registry and apply approved changes. Supports rollback and version pinning.
 
 ## Mode Detection
 
-Check if the `claudefather` MCP server is configured:
-1. Look for `mcp__claudefather__claudefather_check_updates` in available tools
+Check if the `claudiator` MCP server is configured:
+1. Look for `mcp__claudiator__claudiator_check_updates` in available tools
 2. If available → MCP MODE (Steps 1-7 below)
 3. If not available → FALLBACK MODE (see Fallback section at bottom)
 
@@ -58,7 +58,7 @@ Build an installed manifest as an array:
 
 ### Step 2: Check for Updates
 
-Call the `claudefather_check_updates` MCP tool with `{ "installed": <manifest array> }`.
+Call the `claudiator_check_updates` MCP tool with `{ "installed": <manifest array> }`.
 
 The tool returns JSON with these categories:
 - `updates` — skills with newer versions available (includes `bump_type`, `changelog`)
@@ -72,7 +72,7 @@ The tool returns JSON with these categories:
 Display the results in the familiar interactive format:
 
 ```
-Claudefather Sync — Registry Mode
+Claudiator Sync — Registry Mode
 ═══════════════════════════════════════════
   Updates available:
     review-pr          v1.2.0 → v1.3.0  (MINOR)
@@ -125,7 +125,7 @@ Collect the list of approved changes.
 Before making any changes, create a timestamped backup:
 
 ```bash
-BACKUP_DIR=~/.local/share/claudefather/backups/$(date +%Y-%m-%d_%H%M%S)
+BACKUP_DIR=~/.local/share/claudiator/backups/$(date +%Y-%m-%d_%H%M%S)
 mkdir -p "$BACKUP_DIR"
 cp -r ~/.claude/skills "$BACKUP_DIR"/skills 2>/dev/null || true
 cp -r ~/.claude/commands "$BACKUP_DIR"/commands 2>/dev/null || true
@@ -137,7 +137,7 @@ Print: `Backed up current files to $BACKUP_DIR`
 
 ### Step 6: Apply Approved Changes
 
-Call the `claudefather_sync` MCP tool with the list of approved skills:
+Call the `claudiator_sync` MCP tool with the list of approved skills:
 
 ```json
 {
@@ -171,7 +171,7 @@ Sync Complete
   Skipped:    N (user declined)
   Pinned:     N (auto-skipped)
 
-  Backup: ~/.local/share/claudefather/backups/<timestamp>/
+  Backup: ~/.local/share/claudiator/backups/<timestamp>/
 
   Changes take effect at next session start.
 ═══════════════════════════════════════════
@@ -181,19 +181,19 @@ Sync Complete
 
 ## FALLBACK MODE (No MCP Server)
 
-If the `claudefather` MCP server is not configured, fall back to the legacy git-based sync. This preserves backward compatibility for users who have not set up their API token yet.
+If the `claudiator` MCP server is not configured, fall back to the legacy git-based sync. This preserves backward compatibility for users who have not set up their API token yet.
 
 ### Fallback Procedure
 
-1. Read `~/.claude/.claudefather-repo` to find the repo path
-2. If missing, tell the user to run `/claudefather-setup` and stop
+1. Read `~/.claude/.claudiator-repo` to find the repo path
+2. If missing, tell the user to run `/claudiator-setup` and stop
 3. Follow the legacy sync protocol documented in `references/sync-protocol.md`
 4. At the end, print:
 
 ```
 Note: You're using git-based sync (legacy mode).
 To upgrade to registry sync with versioning and rollback:
-1. Set up a claudefather API token
+1. Set up a claudiator API token
 2. Add the MCP server config to ~/.claude/settings.json
 See the setup guide for details.
 ```
@@ -202,12 +202,12 @@ See the setup guide for details.
 
 ## Subcommands
 
-### /claudefather-sync rollback <skill-name> [version]
+### /claudiator-sync rollback <skill-name> [version]
 
 Roll back a specific skill to a previous version.
 
 1. If no version specified, use "previous" (one version back)
-2. Call `claudefather_rollback` MCP tool with skill_slug and target_version
+2. Call `claudiator_rollback` MCP tool with skill_slug and target_version
 3. The MCP tool fetches the target version content from the registry
 4. Write the content to disk using Write tool
 5. Update `.version` file
@@ -224,12 +224,12 @@ Rollback Complete
 ═══════════════════════════════════════════
 ```
 
-### /claudefather-sync pin <skill-name> [version]
+### /claudiator-sync pin <skill-name> [version]
 
 Pin a skill to a specific version. Pinned skills are skipped during sync.
 
 1. If no version specified, pin to current installed version
-2. Call `claudefather_pin` MCP tool with skill_slug and version
+2. Call `claudiator_pin` MCP tool with skill_slug and version
 3. Print confirmation:
 
 ```
@@ -237,19 +237,19 @@ Pinned: review-pr at v1.2.0
 This skill will be skipped during sync until unpinned.
 ```
 
-### /claudefather-sync unpin <skill-name>
+### /claudiator-sync unpin <skill-name>
 
 Unpin a skill to resume tracking latest.
 
-1. Call `claudefather_unpin` MCP tool with skill_slug
+1. Call `claudiator_unpin` MCP tool with skill_slug
 2. Print confirmation:
 
 ```
 Unpinned: review-pr (was pinned at v1.2.0, latest is v1.3.0)
-Run /claudefather-sync to update.
+Run /claudiator-sync to update.
 ```
 
-### /claudefather-sync status
+### /claudiator-sync status
 
 Report-only mode. Runs Steps 1-3 without applying changes.
 
@@ -263,4 +263,4 @@ Report-only mode. Runs Steps 1-3 without applying changes.
 - `~/.claude/docs/` is never synced — installed once during setup, not managed afterward.
 - If the user passes the argument `status`, only run Steps 1-3 (report, don't sync).
 - Use Read/Write tools for file operations, not shell `cp`. Exception: backup copies use shell `cp -r` since they're preservation, not reviewed changes.
-- Backups go to `~/.local/share/claudefather/backups/` — outside `~/.claude/` so Claude Code never discovers them.
+- Backups go to `~/.local/share/claudiator/backups/` — outside `~/.claude/` so Claude Code never discovers them.

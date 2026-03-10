@@ -3,7 +3,7 @@
 #
 # Detects skill invocations and logs them to a session-local JSONL file.
 # The /session-handoff skill reads this file and submits telemetry
-# via the claudefather_log_invocation MCP tool.
+# via the claudiator_log_invocation MCP tool.
 #
 # This hook ONLY logs Skill tool invocations. All other tools are ignored.
 # No prompt content, code, or file paths are captured.
@@ -31,7 +31,7 @@ RESULT=$(printf '%s' "$INPUT" | jq -r '
 IFS=$'\t' read -r SKILL_SLUG SESSION_ID SUCCESS <<< "$RESULT"
 
 # Append to session telemetry file (JSONL format)
-TELEMETRY_FILE="/tmp/claudefather-telemetry-${SESSION_ID}.jsonl"
+TELEMETRY_FILE="/tmp/claudiator-telemetry-${SESSION_ID}.jsonl"
 
 printf '{"skill_slug":"%s","session_id":"%s","success":%s,"invoked_at":"%s"}\n' \
   "$SKILL_SLUG" "$SESSION_ID" "$SUCCESS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \

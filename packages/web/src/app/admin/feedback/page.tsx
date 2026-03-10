@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { createDb } from "@claudefather/db/client";
-import { skillFeedback, skills, users } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { skillFeedback, skills, users } from "@claudiator/db/schema";
 import { sql, desc, asc, eq, and } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Card } from "@/components/ui/card";

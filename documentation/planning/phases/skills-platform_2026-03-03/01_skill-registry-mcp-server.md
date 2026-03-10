@@ -16,7 +16,7 @@
 
 ## Context
 
-Claudefather currently distributes 38 skills to ~20 users via git-clone file-copy sync (`/claudefather-setup` and `/claudefather-sync`). This mechanism has no versioning, no telemetry, no feedback loop, and no centralized registry. The maintainer is flying blind on adoption and quality.
+Claudiator currently distributes 38 skills to ~20 users via git-clone file-copy sync (`/claudiator-setup` and `/claudiator-sync`). This mechanism has no versioning, no telemetry, no feedback loop, and no centralized registry. The maintainer is flying blind on adoption and quality.
 
 This phase builds the foundational infrastructure that all subsequent phases depend on:
 1. A PostgreSQL database (Neon) that serves as the single source of truth for skills, versions, users, and API tokens.
@@ -65,9 +65,9 @@ packages/
       index.ts                   # Entry point, Streamable HTTP transport setup
       server.ts                  # MCP server with tool registrations
       tools/
-        sync.ts                  # claudefather_sync tool (returns content for Claude to write)
-        check-updates.ts         # claudefather_check_updates tool
-        whoami.ts                # claudefather_whoami tool
+        sync.ts                  # claudiator_sync tool (returns content for Claude to write)
+        check-updates.ts         # claudiator_check_updates tool
+        whoami.ts                # claudiator_whoami tool
       lib/
         db.ts                    # Direct database access (shared with web)
         diff.ts                  # Diff computation for sync preview
@@ -98,7 +98,7 @@ packages/
             page.tsx           # Generate new key form
       lib/
         auth.ts                # NextAuth configuration
-        db.ts                  # Database connection (re-exports from @claudefather/db)
+        db.ts                  # Database connection (re-exports from @claudiator/db)
         tokens.ts              # Token generation, hashing, validation
       components/
         token-table.tsx        # Token list with actions
@@ -114,11 +114,11 @@ packages/
 
 ### Step 1: Initialize Monorepo
 
-**File: `/Users/chris/Projects/the-claudefather/packages/db/package.json`**
+**File: `/Users/chris/Projects/the-claudiator/packages/db/package.json`**
 
 ```json
 {
-  "name": "@claudefather/db",
+  "name": "@claudiator/db",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -142,14 +142,14 @@ packages/
 }
 ```
 
-**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/package.json`**
+**File: `/Users/chris/Projects/the-claudiator/packages/mcp-server/package.json`**
 
 ```json
 {
-  "name": "@claudefather/mcp-server",
+  "name": "@claudiator/mcp-server",
   "version": "1.0.0",
   "private": true,
-  "description": "MCP server for claudefather skill registry — hosted on Railway, Streamable HTTP transport.",
+  "description": "MCP server for claudiator skill registry — hosted on Railway, Streamable HTTP transport.",
   "type": "module",
   "scripts": {
     "build": "tsc",
@@ -158,7 +158,7 @@ packages/
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.0",
-    "@claudefather/db": "workspace:*",
+    "@claudiator/db": "workspace:*",
     "@neondatabase/serverless": "^1.0.0",
     "drizzle-orm": "^0.38.0",
     "zod": "^3.25.0",
@@ -176,7 +176,7 @@ packages/
 }
 ```
 
-**File: `/Users/chris/Projects/the-claudefather/Dockerfile`** (repo root — builds mcp-server with workspace deps)
+**File: `/Users/chris/Projects/the-claudiator/Dockerfile`** (repo root — builds mcp-server with workspace deps)
 
 ```dockerfile
 FROM node:20-slim AS builder
@@ -198,8 +198,8 @@ COPY packages/db/ ./packages/db/
 COPY packages/mcp-server/ ./packages/mcp-server/
 
 # Build db first (dependency), then mcp-server
-RUN pnpm --filter @claudefather/db run build
-RUN pnpm --filter @claudefather/mcp-server run build
+RUN pnpm --filter @claudiator/db run build
+RUN pnpm --filter @claudiator/mcp-server run build
 
 FROM node:20-slim
 WORKDIR /app
@@ -225,11 +225,11 @@ CMD ["node", "packages/mcp-server/dist/index.js"]
 - The MCP server connects directly to Neon (same database as the web app), eliminating the need for an intermediate API layer
 - Simpler onboarding: just a URL + token in `settings.json`
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/package.json`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/package.json`**
 
 ```json
 {
-  "name": "@claudefather/web",
+  "name": "@claudiator/web",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -243,7 +243,7 @@ CMD ["node", "packages/mcp-server/dist/index.js"]
     "react-dom": "^19.0.0",
     "next-auth": "^5.0.0",
     "@auth/drizzle-adapter": "^1.7.0",
-    "@claudefather/db": "workspace:*",
+    "@claudiator/db": "workspace:*",
     "@neondatabase/serverless": "^1.0.0",
     "drizzle-orm": "^0.38.0",
     "bcryptjs": "^2.4.3"
@@ -267,7 +267,7 @@ CMD ["node", "packages/mcp-server/dist/index.js"]
 
 ### Step 2: Database Schema
 
-**File: `/Users/chris/Projects/the-claudefather/packages/db/src/schema.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/db/src/schema.ts`**
 
 ```typescript
 import {
@@ -412,7 +412,7 @@ export const userSkillPins = pgTable(
 
 ### Step 3: Database Client
 
-**File: `/Users/chris/Projects/the-claudefather/packages/db/src/client.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/db/src/client.ts`**
 
 ```typescript
 import { neon } from "@neondatabase/serverless";
@@ -431,9 +431,9 @@ export type Db = ReturnType<typeof createDb>;
 
 ### Step 3B: Shared Token Validation
 
-Token validation is needed by both the MCP server (to authenticate API key per request) and the web app (to validate tokens for skill API routes). This module lives in `@claudefather/db` since it operates on the `api_tokens` table defined in the schema.
+Token validation is needed by both the MCP server (to authenticate API key per request) and the web app (to validate tokens for skill API routes). This module lives in `@claudiator/db` since it operates on the `api_tokens` table defined in the schema.
 
-**File: `/Users/chris/Projects/the-claudefather/packages/db/src/auth.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/db/src/auth.ts`**
 
 ```typescript
 import bcrypt from "bcryptjs";
@@ -498,11 +498,11 @@ export async function validateToken(
 }
 ```
 
-**Why in `@claudefather/db`:** Both the MCP server and the web app depend on `@claudefather/db`. Putting validation here avoids duplicating bcrypt logic in two packages. The function takes a `Db` instance as a parameter (dependency injection), so it works with any database connection.
+**Why in `@claudiator/db`:** Both the MCP server and the web app depend on `@claudiator/db`. Putting validation here avoids duplicating bcrypt logic in two packages. The function takes a `Db` instance as a parameter (dependency injection), so it works with any database connection.
 
 ### Step 4: Drizzle Configuration
 
-**File: `/Users/chris/Projects/the-claudefather/packages/db/drizzle.config.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/db/drizzle.config.ts`**
 
 ```typescript
 import { defineConfig } from "drizzle-kit";
@@ -519,7 +519,7 @@ export default defineConfig({
 
 ### Step 5: Migration Runner
 
-**File: `/Users/chris/Projects/the-claudefather/packages/db/src/migrate.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/db/src/migrate.ts`**
 
 ```typescript
 import { neon } from "@neondatabase/serverless";
@@ -549,9 +549,9 @@ main().catch((err) => {
 
 ### Step 6: Seed Script
 
-This script reads all 38 skills from the `global/skills/` directory in the claudefather repo and inserts them as v1.0.0 entries in the database.
+This script reads all 38 skills from the `global/skills/` directory in the claudiator repo and inserts them as v1.0.0 entries in the database.
 
-**File: `/Users/chris/Projects/the-claudefather/packages/db/src/seed.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/db/src/seed.ts`**
 
 ```typescript
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
@@ -605,7 +605,7 @@ const SKILL_CATEGORIES: Record<string, string> = {
   // Utilities
   notes: "utilities",
   notifications: "utilities",
-  "claudefather-migrate": "utilities",
+  "claudiator-migrate": "utilities",
   "cache-audit": "utilities",
 };
 
@@ -697,7 +697,7 @@ async function main() {
       version: "1.0.0",
       content,
       references,
-      changelog: "Initial import from claudefather git repository.",
+      changelog: "Initial import from claudiator git repository.",
       isLatest: true,
     });
 
@@ -745,7 +745,7 @@ main().catch((err) => {
 
 ### Step 7: MCP Server Entry Point
 
-**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/index.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/mcp-server/src/index.ts`**
 
 ```typescript
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -753,9 +753,9 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import { createServer } from "./server.js";
-import { validateToken } from "@claudefather/db/auth";
-import { createDb } from "@claudefather/db/client";
-import { users } from "@claudefather/db/schema";
+import { validateToken } from "@claudiator/db/auth";
+import { createDb } from "@claudiator/db/client";
+import { users } from "@claudiator/db/schema";
 import { eq } from "drizzle-orm";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -846,7 +846,7 @@ app.all("/mcp", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Claudefather MCP server listening on port ${PORT}`);
+  console.log(`Claudiator MCP server listening on port ${PORT}`);
 });
 ```
 
@@ -856,7 +856,7 @@ app.listen(PORT, () => {
 
 ### Step 8: MCP Server Tool Registration
 
-**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/server.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/mcp-server/src/server.ts`**
 
 ```typescript
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -873,19 +873,19 @@ interface ServerConfig {
 
 export function createServer(config: ServerConfig): McpServer {
   const server = new McpServer({
-    name: "claudefather",
+    name: "claudiator",
     version: "1.0.0",
   });
 
   const db = createDbClient(config.databaseUrl);
 
-  // ─── claudefather_sync ─────────────────────────────────────────────────────
+  // ─── claudiator_sync ─────────────────────────────────────────────────────
   server.registerTool(
-    "claudefather_sync",
+    "claudiator_sync",
     {
       title: "Sync Skills from Registry",
       description:
-        "Fetches latest skills from the claudefather registry. Returns skill content " +
+        "Fetches latest skills from the claudiator registry. Returns skill content " +
         "that Claude Code should write to ~/.claude/skills/. " +
         "Skills are loaded by Claude Code at session start from the local filesystem.",
       inputSchema: z.object({
@@ -906,9 +906,9 @@ export function createServer(config: ServerConfig): McpServer {
     async (args) => syncSkills(db, config.user, args)
   );
 
-  // ─── claudefather_check_updates ────────────────────────────────────────────
+  // ─── claudiator_check_updates ────────────────────────────────────────────
   server.registerTool(
-    "claudefather_check_updates",
+    "claudiator_check_updates",
     {
       title: "Check for Skill Updates",
       description:
@@ -928,9 +928,9 @@ export function createServer(config: ServerConfig): McpServer {
     async (args) => checkUpdates(db, config.user, args)
   );
 
-  // ─── claudefather_whoami ───────────────────────────────────────────────────
+  // ─── claudiator_whoami ───────────────────────────────────────────────────
   server.registerTool(
-    "claudefather_whoami",
+    "claudiator_whoami",
     {
       title: "Current User Info",
       description:
@@ -946,14 +946,14 @@ export function createServer(config: ServerConfig): McpServer {
 
 ### Step 9: Database Client (Direct Access)
 
-The MCP server runs on Railway and connects directly to Neon PostgreSQL — no intermediate web API layer needed. It shares the same `@claudefather/db` schema package as the web app.
+The MCP server runs on Railway and connects directly to Neon PostgreSQL — no intermediate web API layer needed. It shares the same `@claudiator/db` schema package as the web app.
 
-**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/lib/db.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/mcp-server/src/lib/db.ts`**
 
 ```typescript
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import * as schema from "@claudefather/db/schema";
+import * as schema from "@claudiator/db/schema";
 
 export function createDbClient(databaseUrl: string) {
   const sql = neon(databaseUrl);
@@ -970,14 +970,14 @@ export type DbClient = ReturnType<typeof createDbClient>;
 **Critical architecture change:** Since the MCP server is hosted on Railway (not running locally), it **cannot write files to the user's disk**. Instead, MCP tools return skill content in the tool response, and Claude Code (the MCP client) is responsible for writing files to `~/.claude/skills/` using its Write tool.
 
 This means:
-- `claudefather_sync` returns a JSON payload with skill content, file paths, and versions
-- The `/claudefather-sync` skill (Phase 03) instructs Claude Code to write each file using the Write tool
+- `claudiator_sync` returns a JSON payload with skill content, file paths, and versions
+- The `/claudiator-sync` skill (Phase 03) instructs Claude Code to write each file using the Write tool
 - The MCP server never touches the local filesystem
 
 **No `skill-writer.ts` module is needed.** The sync tool returns structured content:
 
 ```typescript
-// Example tool response from claudefather_sync
+// Example tool response from claudiator_sync
 {
   content: [{
     type: "text",
@@ -999,20 +999,20 @@ This means:
 }
 ```
 
-Claude Code receives this response and the `/claudefather-sync` skill instructs it to:
+Claude Code receives this response and the `/claudiator-sync` skill instructs it to:
 1. Write each file to `~/.claude/skills/<slug>/<path>` using the Write tool
 2. Write the version to `~/.claude/skills/<slug>/.version`
 3. Set executable permissions on `.sh` files via `chmod +x`
 
 ### Step 11: Sync Tool Implementation
 
-**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/tools/sync.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/mcp-server/src/tools/sync.ts`**
 
 The sync tool queries the database for latest skill versions and returns the content. It does NOT write to disk — Claude Code handles that.
 
 ```typescript
 import type { DbClient } from "../lib/db.js";
-import { skills, skillVersions } from "@claudefather/db/schema";
+import { skills, skillVersions } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 
 interface SyncArgs {
@@ -1111,11 +1111,11 @@ export async function syncSkills(
 
 The check-updates tool runs on Railway (no local filesystem access). The client (Claude Code) must send its installed skill versions as input. The server compares against the database and reports differences.
 
-**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/tools/check-updates.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/mcp-server/src/tools/check-updates.ts`**
 
 ```typescript
 import type { DbClient } from "../lib/db.js";
-import { skills, skillVersions } from "@claudefather/db/schema";
+import { skills, skillVersions } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 
 interface InstalledSkill {
@@ -1191,7 +1191,7 @@ export async function checkUpdates(
       return `  ${u.slug}: ${u.currentVersion} → ${u.latestVersion}${changeNote}`;
     }),
     "",
-    "Run claudefather_sync to apply updates.",
+    "Run claudiator_sync to apply updates.",
   ];
 
   return {
@@ -1202,7 +1202,7 @@ export async function checkUpdates(
 
 ### Step 13: Whoami Tool
 
-**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/src/tools/whoami.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/mcp-server/src/tools/whoami.ts`**
 
 ```typescript
 export async function whoami(
@@ -1224,14 +1224,14 @@ export async function whoami(
 
 ### Step 14: Web App — NextAuth Configuration
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/lib/auth.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/lib/auth.ts`**
 
 ```typescript
 import NextAuth from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { createDb } from "@claudefather/db/client";
-import { users } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { users } from "@claudiator/db/schema";
 import { eq } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -1302,13 +1302,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
 ### Step 15: Token Management Library
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/lib/tokens.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/lib/tokens.ts`**
 
 ```typescript
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { createDb } from "@claudefather/db/client";
-import { apiTokens } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { apiTokens } from "@claudiator/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -1317,7 +1317,7 @@ const TOKEN_PREFIX = "cf_";
 const TOKEN_BYTES = 32; // 32 bytes = 64 hex chars + "cf_" prefix = 67 chars total
 const BCRYPT_ROUNDS = 12;
 
-// Note: validateToken lives in @claudefather/db/auth (shared by MCP server and web app)
+// Note: validateToken lives in @claudiator/db/auth (shared by MCP server and web app)
 // This module only handles token generation, revocation, and rotation (web-only operations)
 
 export interface GenerateTokenResult {
@@ -1412,21 +1412,21 @@ export async function rotateToken(
 ```
 
 **Token security design decisions:**
-- **`cf_` prefix:** All tokens start with `cf_` for easy identification in logs and leak detection (like GitHub's `ghp_` prefix). If a `cf_` token appears in a git commit or log file, it is immediately recognizable as a claudefather API key.
+- **`cf_` prefix:** All tokens start with `cf_` for easy identification in logs and leak detection (like GitHub's `ghp_` prefix). If a `cf_` token appears in a git commit or log file, it is immediately recognizable as a claudiator API key.
 - **Prefix-based lookup:** The `tokenPrefix` column stores the first 11 characters (enough for uniqueness across a small user base). This narrows the bcrypt comparison to 1-2 candidates instead of scanning all tokens.
 - **bcrypt over SHA-256:** bcrypt is intentionally slow (~250ms per comparison at 12 rounds), which is acceptable for API token validation (happens once per MCP tool call, not per-request on a high-throughput API). SHA-256 is fast but vulnerable to brute-force if the database leaks.
 - **Rotation = revoke + generate:** The old token is immediately revoked. The new token inherits the same name and remaining expiration. Active MCP sessions using the old token will fail on next tool call and see a clear error message directing them to update their env var.
 
 ### Step 16: API Routes — Token Management
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/tokens/route.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/app/api/tokens/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateToken } from "@/lib/tokens";
-import { createDb } from "@claudefather/db/client";
-import { apiTokens } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { apiTokens } from "@claudiator/db/schema";
 import { eq, isNull, desc } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -1493,7 +1493,7 @@ export async function POST(request: Request) {
 }
 ```
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/tokens/[id]/route.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/app/api/tokens/[id]/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -1522,7 +1522,7 @@ export async function DELETE(
 }
 ```
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/tokens/[id]/rotate/route.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/app/api/tokens/[id]/rotate/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
@@ -1553,13 +1553,13 @@ export async function POST(
 
 ### Step 17: API Routes — Skills (for MCP server)
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/skills/route.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/app/api/skills/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
-import { validateToken } from "@claudefather/db/auth";
-import { createDb } from "@claudefather/db/client";
-import { skills, skillVersions } from "@claudefather/db/schema";
+import { validateToken } from "@claudiator/db/auth";
+import { createDb } from "@claudiator/db/client";
+import { skills, skillVersions } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -1605,13 +1605,13 @@ export async function GET(request: Request) {
 }
 ```
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/skills/[slug]/route.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/app/api/skills/[slug]/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
-import { validateToken } from "@claudefather/db/auth";
-import { createDb } from "@claudefather/db/client";
-import { skills, skillVersions } from "@claudefather/db/schema";
+import { validateToken } from "@claudiator/db/auth";
+import { createDb } from "@claudiator/db/client";
+import { skills, skillVersions } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -1666,13 +1666,13 @@ export async function GET(
 
 ### Step 18: API Route — Whoami (for MCP server)
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/whoami/route.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/app/api/whoami/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
-import { validateToken } from "@claudefather/db/auth";
-import { createDb } from "@claudefather/db/client";
-import { users, apiTokens } from "@claudefather/db/schema";
+import { validateToken } from "@claudiator/db/auth";
+import { createDb } from "@claudiator/db/client";
+import { users, apiTokens } from "@claudiator/db/schema";
 import { eq } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -1718,13 +1718,13 @@ export async function GET(request: Request) {
 
 ### Step 19: API Route — Check Updates (for MCP server)
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/api/skills/check-updates/route.ts`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/app/api/skills/check-updates/route.ts`**
 
 ```typescript
 import { NextResponse } from "next/server";
-import { validateToken } from "@claudefather/db/auth";
-import { createDb } from "@claudefather/db/client";
-import { skills, skillVersions } from "@claudefather/db/schema";
+import { validateToken } from "@claudiator/db/auth";
+import { createDb } from "@claudiator/db/client";
+import { skills, skillVersions } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -1783,7 +1783,7 @@ export async function POST(request: Request) {
 
 The dashboard follows the dark terminal aesthetic specified in the requirements. Key design elements: dark background (`#0d1117`), green accents for active states (`#3fb950`), amber for warnings (`#d29922`), monospace headers (`JetBrains Mono` or `ui-monospace` fallback).
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/dashboard/page.tsx`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/app/dashboard/page.tsx`**
 
 ```tsx
 import { auth } from "@/lib/auth";
@@ -1800,7 +1800,7 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-[#0d1117] text-gray-200">
       <div className="max-w-4xl mx-auto px-6 py-12">
         <h1 className="font-mono text-2xl text-green-400 mb-2">
-          claudefather
+          claudiator
         </h1>
         <p className="text-gray-500 mb-8">
           API Keys &amp; MCP Configuration
@@ -1844,7 +1844,7 @@ export default async function DashboardPage() {
 }
 ```
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/app/dashboard/generate/page.tsx`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/app/dashboard/generate/page.tsx`**
 
 ```tsx
 import { auth } from "@/lib/auth";
@@ -1874,14 +1874,14 @@ export default async function GenerateTokenPage() {
 }
 ```
 
-**File: `/Users/chris/Projects/the-claudefather/packages/web/src/components/copy-snippet.tsx`**
+**File: `/Users/chris/Projects/the-claudiator/packages/web/src/components/copy-snippet.tsx`**
 
 ```tsx
 "use client";
 
 import { useState } from "react";
 
-const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "https://mcp.the-claudefather.railway.app";
+const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "https://mcp.the-claudiator.railway.app";
 
 export function CopySnippet() {
   const [copied, setCopied] = useState(false);
@@ -1889,7 +1889,7 @@ export function CopySnippet() {
   const snippet = JSON.stringify(
     {
       mcpServers: {
-        claudefather: {
+        claudiator: {
           type: "http",
           url: `${MCP_SERVER_URL}/mcp`,
           headers: {
@@ -1933,9 +1933,9 @@ The following environment variables are required for deployment:
 DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
 GITHUB_CLIENT_ID=Ov23li...           # From GitHub OAuth App settings
 GITHUB_CLIENT_SECRET=abcdef...       # From GitHub OAuth App settings
-NEXTAUTH_URL=https://claudefather.vercel.app
+NEXTAUTH_URL=https://claudiator.vercel.app
 NEXTAUTH_SECRET=$(openssl rand -base64 32)
-MCP_SERVER_URL=https://mcp.the-claudefather.railway.app  # For copy-snippet component
+MCP_SERVER_URL=https://mcp.the-claudiator.railway.app  # For copy-snippet component
 ```
 
 **Railway (MCP server):**
@@ -1950,16 +1950,16 @@ Users only need to add the MCP config snippet to `~/.claude/settings.json` with 
 ### Step 22: GitHub OAuth App Setup
 
 Create a GitHub OAuth App at https://github.com/settings/developers:
-- **Application name:** claudefather
-- **Homepage URL:** https://claudefather.vercel.app
-- **Authorization callback URL:** https://claudefather.vercel.app/api/auth/callback/github
+- **Application name:** claudiator
+- **Homepage URL:** https://claudiator.vercel.app
+- **Authorization callback URL:** https://claudiator.vercel.app/api/auth/callback/github
 - **Enable Device Flow:** No (not needed)
 
 Copy the Client ID and Client Secret to Vercel environment variables.
 
 ### Step 23: TypeScript Configurations
 
-**File: `/Users/chris/Projects/the-claudefather/packages/db/tsconfig.json`**
+**File: `/Users/chris/Projects/the-claudiator/packages/db/tsconfig.json`**
 
 ```json
 {
@@ -1978,7 +1978,7 @@ Copy the Client ID and Client Secret to Vercel environment variables.
 }
 ```
 
-**File: `/Users/chris/Projects/the-claudefather/packages/mcp-server/tsconfig.json`**
+**File: `/Users/chris/Projects/the-claudiator/packages/mcp-server/tsconfig.json`**
 
 ```json
 {
@@ -2001,10 +2001,10 @@ Copy the Client ID and Client Secret to Vercel environment variables.
 
 Deploy the MCP server to Railway:
 
-1. **Create Railway project** — Link to the `the-claudefather` GitHub repo
+1. **Create Railway project** — Link to the `the-claudiator` GitHub repo
 2. **Configure service** — Point to the repo root (Dockerfile is at root for monorepo build), Railway auto-detects the Dockerfile
 3. **Set environment variables** — `DATABASE_URL` (same Neon connection string as Vercel)
-4. **Custom domain** (optional) — `mcp.the-claudefather.railway.app` or custom domain
+4. **Custom domain** (optional) — `mcp.the-claudiator.railway.app` or custom domain
 5. **Health check** — Configure Railway health check to `GET /health`
 6. **Autoscaling** — Start with a single instance; Railway scales as needed
 
@@ -2016,24 +2016,24 @@ The MCP server shares the same Neon database as the Vercel web app. Both service
 
 ### Unit Tests
 
-**Package: `@claudefather/db`**
+**Package: `@claudiator/db`**
 
 1. **Schema validation test** — Run `drizzle-kit generate` and verify migration SQL is generated without errors.
 2. **Seed idempotency test** — Run seed script twice against a test database. Verify no duplicates, no errors, and all 38 skills + `_shared` present.
 3. **Seed content integrity test** — Verify that for each seeded skill, the `content` column matches the file content of `global/skills/<slug>/SKILL.md` byte-for-byte.
 4. **References test** — Verify context-resume and session-handoff have non-null `references` JSONB with the correct keys (`references/templates.md`).
 
-**Package: `@claudefather/mcp-server`**
+**Package: `@claudiator/mcp-server`**
 
 5. **API key validation** — Test valid key returns user, expired key returns null, revoked key returns null.
 6. **Streamable HTTP transport** — Verify server starts and accepts connections on `/mcp` endpoint.
-7. **Sync tool — returns content** — Call `claudefather_sync`, verify response contains JSON with skill content, versions, and file paths.
+7. **Sync tool — returns content** — Call `claudiator_sync`, verify response contains JSON with skill content, versions, and file paths.
 8. **Sync tool — dry run** — Call with `dryRun: true`, verify response contains skill list without file content.
 9. **Sync tool — filtered skills** — Call with `skills: ["review-pr"]`, verify only that skill is returned.
 10. **Health endpoint** — Verify `GET /health` returns 200 with `{"status": "ok"}`.
 11. **Unauthenticated request** — Verify `/mcp` without API key returns 401.
 
-**Package: `@claudefather/web`**
+**Package: `@claudiator/web`**
 
 12. **Token generation** — Generate a token, verify it starts with `cf_`, is 67 characters long, and the stored hash validates against the raw token.
 13. **Token validation — valid** — Generate and validate a token, verify userId is returned.
@@ -2050,8 +2050,8 @@ The MCP server shares the same Neon database as the Vercel web app. Both service
 
 ### Integration Tests
 
-24. **End-to-end MCP sync** — Connect to Railway-hosted MCP server with a test token, call `claudefather_sync`, verify response contains skill content that can be written to `~/.claude/skills/`.
-25. **End-to-end check updates** — Seed v1.0.0, publish v1.1.0 for one skill, call `claudefather_check_updates`, verify it reports the update.
+24. **End-to-end MCP sync** — Connect to Railway-hosted MCP server with a test token, call `claudiator_sync`, verify response contains skill content that can be written to `~/.claude/skills/`.
+25. **End-to-end check updates** — Seed v1.0.0, publish v1.1.0 for one skill, call `claudiator_check_updates`, verify it reports the update.
 26. **GitHub OAuth flow** — Manually test login with a GitHub account, verify user is created in DB with correct githubId and username.
 
 ### Manual Verification Steps
@@ -2059,8 +2059,8 @@ The MCP server shares the same Neon database as the Vercel web app. Both service
 27. **Neon database setup** — Create a Neon project, set DATABASE_URL, run migrations, run seed. Verify all tables exist with correct schemas via Neon console.
 28. **Vercel deployment** — Deploy web app to Vercel, verify landing page loads, GitHub OAuth login works, dashboard shows after login.
 29. **Token generation in UI** — Generate a token in the dashboard, verify it appears in the token list with correct name and prefix.
-30. **MCP configuration** — Copy the settings.json snippet (URL + token), verify Claude Code discovers the remote MCP server and shows `claudefather_sync`, `claudefather_check_updates`, `claudefather_whoami` in tool list.
-31. **MCP sync from Claude Code** — Call `claudefather_sync` from a Claude Code session, verify the `/claudefather-sync` skill writes returned content to `~/.claude/skills/`.
+30. **MCP configuration** — Copy the settings.json snippet (URL + token), verify Claude Code discovers the remote MCP server and shows `claudiator_sync`, `claudiator_check_updates`, `claudiator_whoami` in tool list.
+31. **MCP sync from Claude Code** — Call `claudiator_sync` from a Claude Code session, verify the `/claudiator-sync` skill writes returned content to `~/.claude/skills/`.
 
 ---
 
@@ -2072,9 +2072,9 @@ Add under `## [Unreleased]` > `### Added`:
 
 ```markdown
 - **Skills platform foundation** — New `packages/` monorepo with three packages:
-  - `@claudefather/db`: PostgreSQL schema (Neon serverless) with tables for users, API tokens, skills, skill versions, and user skill pins. Drizzle ORM for type-safe queries. Seed script imports all 38 skills as v1.0.0.
-  - `@claudefather/mcp-server`: Railway-hosted MCP server (Streamable HTTP transport) with three tools — `claudefather_sync` (fetch skills from registry, returns content for Claude Code to write), `claudefather_check_updates` (check for newer versions), `claudefather_whoami` (show auth status). Connects directly to Neon database.
-  - `@claudefather/web`: Next.js web app on Vercel with GitHub OAuth login, API token management (generate, revoke, rotate), connection health metrics, and MCP configuration snippet.
+  - `@claudiator/db`: PostgreSQL schema (Neon serverless) with tables for users, API tokens, skills, skill versions, and user skill pins. Drizzle ORM for type-safe queries. Seed script imports all 38 skills as v1.0.0.
+  - `@claudiator/mcp-server`: Railway-hosted MCP server (Streamable HTTP transport) with three tools — `claudiator_sync` (fetch skills from registry, returns content for Claude Code to write), `claudiator_check_updates` (check for newer versions), `claudiator_whoami` (show auth status). Connects directly to Neon database.
+  - `@claudiator/web`: Next.js web app on Vercel with GitHub OAuth login, API token management (generate, revoke, rotate), connection health metrics, and MCP configuration snippet.
 ```
 
 ### README.md
@@ -2084,20 +2084,20 @@ Add a new section after the existing content:
 ```markdown
 ## Skills Platform (Beta)
 
-Claudefather includes a centralized skills registry that replaces git-clone sync with a database-backed distribution system.
+Claudiator includes a centralized skills registry that replaces git-clone sync with a database-backed distribution system.
 
 ### Setup
 
-1. Log in at https://claudefather.vercel.app with your GitHub account
+1. Log in at https://claudiator.vercel.app with your GitHub account
 2. Generate an API key on the dashboard
 3. Add the MCP server to your `~/.claude/settings.json`:
 
 \```json
 {
   "mcpServers": {
-    "claudefather": {
+    "claudiator": {
       "type": "http",
-      "url": "https://mcp.the-claudefather.railway.app/mcp",
+      "url": "https://mcp.the-claudiator.railway.app/mcp",
       "headers": {
         "Authorization": "Bearer <your-token>"
       }
@@ -2106,7 +2106,7 @@ Claudefather includes a centralized skills registry that replaces git-clone sync
 }
 \```
 
-4. Restart Claude Code. The `claudefather_sync` tool will be available.
+4. Restart Claude Code. The `claudiator_sync` tool will be available.
 
 No local installation required — the MCP server is hosted on Railway.
 
@@ -2114,9 +2114,9 @@ No local installation required — the MCP server is hosted on Railway.
 
 | Tool | Description |
 |------|-------------|
-| `claudefather_sync` | Fetch latest skills from registry and write to `~/.claude/skills/` |
-| `claudefather_check_updates` | Check for available skill updates |
-| `claudefather_whoami` | Show your identity and token status |
+| `claudiator_sync` | Fetch latest skills from registry and write to `~/.claude/skills/` |
+| `claudiator_check_updates` | Check for available skill updates |
+| `claudiator_whoami` | Show your identity and token status |
 ```
 
 ---
@@ -2128,7 +2128,7 @@ No local installation required — the MCP server is hosted on Railway.
 | Token expired during active session | MCP tool call returns 401 with message directing to token generation page. Session continues, other non-MCP tools work. |
 | Token revoked while MCP server running | Same as expired -- 401 on next tool call. MCP server process stays alive, no crash. |
 | Neon database cold start (free tier) | First request after idle period may take 1-3 seconds (Neon compute wake-up). Subsequent requests are fast. The MCP SDK has no timeout by default. |
-| User has skills locally that are not in registry | `claudefather_sync` only writes skills that exist in the registry. Local-only skills (e.g., user-created) are left untouched. |
+| User has skills locally that are not in registry | `claudiator_sync` only writes skills that exist in the registry. Local-only skills (e.g., user-created) are left untouched. |
 | Two users call `/api/skills` simultaneously | Both get consistent results. The `isLatest` flag is set in a transaction, so no partial state. |
 | Large SKILL.md (design-review is 20KB) | Well within PostgreSQL's text column limit (1GB). HTTP response for all 38 skills is ~236KB total -- well within Vercel's 4.5MB response limit. |
 | User generates 100+ tokens | Token list query is indexed by `userId`. Performance is fine for thousands of rows. UI should paginate if list grows large (Phase 04 concern, not Phase 01). |
@@ -2151,10 +2151,10 @@ No local installation required — the MCP server is hosted on Railway.
 - [ ] `packages/mcp-server/` — Deploys to Railway and starts with Streamable HTTP transport on configured PORT
 - [ ] `packages/mcp-server/` — `/health` endpoint returns 200
 - [ ] `packages/mcp-server/` — Rejects connections without valid API key (401)
-- [ ] `packages/mcp-server/` — `claudefather_sync` returns skill content as JSON for Claude Code to write
-- [ ] `packages/mcp-server/` — `claudefather_sync` with `dryRun: true` shows available skills without returning content
-- [ ] `packages/mcp-server/` — `claudefather_check_updates` reports version differences
-- [ ] `packages/mcp-server/` — `claudefather_whoami` returns GitHub identity and token name
+- [ ] `packages/mcp-server/` — `claudiator_sync` returns skill content as JSON for Claude Code to write
+- [ ] `packages/mcp-server/` — `claudiator_sync` with `dryRun: true` shows available skills without returning content
+- [ ] `packages/mcp-server/` — `claudiator_check_updates` reports version differences
+- [ ] `packages/mcp-server/` — `claudiator_whoami` returns GitHub identity and token name
 - [ ] `packages/web/` — GitHub OAuth login creates user in DB
 - [ ] `packages/web/` — Dashboard shows token list with name, prefix, expiry, actions
 - [ ] `packages/web/` — Generate token page returns raw token shown ONCE
@@ -2190,7 +2190,7 @@ No local installation required — the MCP server is hosted on Railway.
 
 8. **Do NOT add the MCP server config to `global/settings.json`.** The reference `settings.json` in `global/` is documentation, not installed. Users configure MCP via the web dashboard's copy-paste snippet (URL + token). Each user's token is different.
 
-9. **Do NOT auto-sync skills without user action.** The MCP `claudefather_sync` tool must be explicitly called (by the user or by a skill). There is no background sync, no polling, no cron. This matches the principle of the existing sync flow where every change requires explicit confirmation.
+9. **Do NOT auto-sync skills without user action.** The MCP `claudiator_sync` tool must be explicitly called (by the user or by a skill). There is no background sync, no polling, no cron. This matches the principle of the existing sync flow where every change requires explicit confirmation.
 
 10. **Do NOT use `pg` (node-postgres) directly.** Use `@neondatabase/serverless` with Drizzle ORM. The serverless driver works over HTTP (no TCP socket), which is required for Vercel's serverless function environment and avoids connection pooling complexity.
 

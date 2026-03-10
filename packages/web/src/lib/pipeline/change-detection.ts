@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
-import { createDb } from "@claudefather/db/client";
-import { sourceSnapshots } from "@claudefather/db/schema";
+import { createDb } from "@claudiator/db/client";
+import { sourceSnapshots } from "@claudiator/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 export async function detectChanges(

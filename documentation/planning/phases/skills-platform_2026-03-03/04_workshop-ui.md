@@ -80,7 +80,7 @@ This plan was generated before Phase 01-03 implementation. The code snippets bel
 
 ## Context
 
-The claudefather maintainer's weekly workflow centers on the Workshop UI: reviewing feedback, studying distilled learnings from the intelligence pipeline, and refining skills through a collaborative human + AI editing experience. Without this interface, the maintainer must SSH into the database for feedback, manually diff SKILL.md files in a text editor, and has no structured way to browse learnings from external sources.
+The claudiator maintainer's weekly workflow centers on the Workshop UI: reviewing feedback, studying distilled learnings from the intelligence pipeline, and refining skills through a collaborative human + AI editing experience. Without this interface, the maintainer must SSH into the database for feedback, manually diff SKILL.md files in a text editor, and has no structured way to browse learnings from external sources.
 
 Phase 04 transforms the Next.js web app (Phase 01) into the primary operational surface for skill maintenance. It builds on top of:
 - Phase 01's Next.js app shell, PostgreSQL database, GitHub OAuth, and token management

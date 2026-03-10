@@ -48,7 +48,7 @@ const SKILL_CATEGORIES: Record<string, string> = {
   // Utilities
   notes: "utilities",
   notifications: "utilities",
-  "claudefather-migrate": "utilities",
+  "claudiator-migrate": "utilities",
   "cache-audit": "utilities",
 };
 
@@ -140,7 +140,7 @@ async function main() {
       version: "1.0.0",
       content,
       references,
-      changelog: "Initial import from claudefather git repository.",
+      changelog: "Initial import from claudiator git repository.",
       isLatest: true,
     });
 

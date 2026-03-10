@@ -80,7 +80,7 @@ This plan was generated before Phase 01-03 implementation. The code snippets bel
 
 ## Context
 
-The claudefather maintainer manages skill distribution for approximately 20 users but has zero visibility into team-wide adoption, version drift, or skill quality. Current feedback arrives via hallway conversations. This phase builds the admin "control tower" -- a set of dashboard pages that answer: "What is happening across my 20 users?" The dashboard surfaces data collected by Phase 02 (telemetry/feedback) and Phase 03 (version registry), presenting it through five views: team overview, skill adoption metrics, version health, feedback triage, and activity feed.
+The claudiator maintainer manages skill distribution for approximately 20 users but has zero visibility into team-wide adoption, version drift, or skill quality. Current feedback arrives via hallway conversations. This phase builds the admin "control tower" -- a set of dashboard pages that answer: "What is happening across my 20 users?" The dashboard surfaces data collected by Phase 02 (telemetry/feedback) and Phase 03 (version registry), presenting it through five views: team overview, skill adoption metrics, version health, feedback triage, and activity feed.
 
 This phase is scoped exclusively to read-only dashboard views and feedback status management. It does not include skill editing (Phase 04 Workshop), intelligence pipeline data (Phase 06), or automated remediation. Admin actions are limited to reviewing data, updating feedback statuses, and sending version nudge notifications.
 

@@ -1,5 +1,5 @@
 {
-  "name": "@claudefather/web",
+  "name": "@claudiator/web",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -10,7 +10,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@auth/drizzle-adapter": "^1.7.0",
-    "@claudefather/db": "workspace:*",
+    "@claudiator/db": "workspace:*",
     "@monaco-editor/react": "^4.7.0",
     "@neondatabase/serverless": "^1.0.2",
     "@tailwindcss/postcss": "^4.2.1",

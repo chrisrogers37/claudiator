@@ -5,7 +5,7 @@ import {
   skillVersions,
   userSkillPins,
   activityEvents,
-} from "@claudefather/db/schema";
+} from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const pinSchema = z.object({
@@ -92,7 +92,7 @@ export async function pin(
       },
     })
     .catch((err: Error) => {
-      console.error("[claudefather] pin event logging error:", err.message);
+      console.error("[claudiator] pin event logging error:", err.message);
     });
 
   return {

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@claudefather/db"],
+  transpilePackages: ["@claudiator/db"],
 };
 
 export default nextConfig;

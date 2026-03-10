@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "https://mcp.the-claudefather.railway.app";
+const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || "https://mcp.the-claudiator.railway.app";
 
 export function TokenForm() {
   const [name, setName] = useState("");
@@ -39,7 +39,7 @@ export function TokenForm() {
   };
 
   if (generatedToken) {
-    const mcpCommand = `claude mcp add claudefather --transport http ${MCP_SERVER_URL}/mcp -H "Authorization: Bearer ${generatedToken}"`;
+    const mcpCommand = `claude mcp add claudiator --transport http ${MCP_SERVER_URL}/mcp -H "Authorization: Bearer ${generatedToken}"`;
 
     const handleCopyCmd = async () => {
       await navigator.clipboard.writeText(mcpCommand);

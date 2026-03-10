@@ -9,14 +9,14 @@
 **Risk Level:** High
 **Estimated Effort:** High (~3-5 days)
 **Files Modified:** 3 (`packages/mcp-server/src/tools/check-updates.ts`, `packages/mcp-server/src/tools/sync.ts`, `global/recommended-permissions.json`)
-**Files Created:** 7 (`global/skills/claudefather-sync/SKILL.md`, `global/skills/claudefather-sync/references/sync-protocol.md`, `packages/mcp-server/src/tools/rollback.ts`, `packages/mcp-server/src/tools/pin.ts`, `packages/mcp-server/src/tools/unpin.ts`, `packages/mcp-server/src/tools/publish.ts`, `packages/db/src/schema.ts` — syncEvents table added)
-**Files Deleted:** 0 (legacy command only exists in claudefather repo, not this repo)
+**Files Created:** 7 (`global/skills/claudiator-sync/SKILL.md`, `global/skills/claudiator-sync/references/sync-protocol.md`, `packages/mcp-server/src/tools/rollback.ts`, `packages/mcp-server/src/tools/pin.ts`, `packages/mcp-server/src/tools/unpin.ts`, `packages/mcp-server/src/tools/publish.ts`, `packages/db/src/schema.ts` — syncEvents table added)
+**Files Deleted:** 0 (legacy command only exists in claudiator repo, not this repo)
 
 ---
 
 ## Context
 
-The current `/claudefather-sync` is a git-based file-copy command (`global/commands/claudefather-sync.md`, 184 lines) that discovers the claudefather repo via a breadcrumb file (`~/.claude/.claudefather-repo`), diffs every managed file pair, and walks the user through interactive Pull/Push/Skip prompts. It has no concept of versions, no rollback capability, no diffing at the semantic level (just raw `diff -u`), and no audit trail.
+The current `/claudiator-sync` is a git-based file-copy command (`global/commands/claudiator-sync.md`, 184 lines) that discovers the claudiator repo via a breadcrumb file (`~/.claude/.claudiator-repo`), diffs every managed file pair, and walks the user through interactive Pull/Push/Skip prompts. It has no concept of versions, no rollback capability, no diffing at the semantic level (just raw `diff -u`), and no audit trail.
 
 At 20 users this creates real pain points (documented in `/private/tmp/claude-501/product-enhance-2026-03-03_000000/research/install-mechanism.md`):
 
@@ -26,7 +26,7 @@ At 20 users this creates real pain points (documented in `/private/tmp/claude-50
 - **No versioning** -- cannot pin a skill version or roll back a single skill independently
 - **No audit trail** -- changes applied immediately with no record of what changed when
 
-This phase replaces the file-copy sync with an MCP-backed protocol that introduces independent semver per skill, a diff manifest (check for updates once, approve in batch), rollback to any previous version, and version pinning. The UX remains the same familiar interactive format -- the user still runs `/claudefather-sync` and approves changes interactively -- but the backend shifts from git-clone-and-diff to MCP-server-and-registry.
+This phase replaces the file-copy sync with an MCP-backed protocol that introduces independent semver per skill, a diff manifest (check for updates once, approve in batch), rollback to any previous version, and version pinning. The UX remains the same familiar interactive format -- the user still runs `/claudiator-sync` and approves changes interactively -- but the backend shifts from git-clone-and-diff to MCP-server-and-registry.
 
 **Key constraint:** Skills must live on the local filesystem at `~/.claude/skills/` (Claude Code loads them at session start into the system prompt). The MCP server is the distribution layer, not the execution layer. Sync writes SKILL.md files to disk; Claude Code reads them at next session start.
 
@@ -42,18 +42,18 @@ This phase replaces the file-copy sync with an MCP-backed protocol that introduc
 
 ## Detailed Implementation Plan
 
-### Step 1: Migrate `/claudefather-sync` from Command to Skill
+### Step 1: Migrate `/claudiator-sync` from Command to Skill
 
-The current sync lives at `global/commands/claudefather-sync.md` (installed to `~/.claude/commands/claudefather-sync.md`). Commands are the legacy format. Migrate it to the skills format so the new implementation can use `allowed-tools` and MCP tool references.
+The current sync lives at `global/commands/claudiator-sync.md` (installed to `~/.claude/commands/claudiator-sync.md`). Commands are the legacy format. Migrate it to the skills format so the new implementation can use `allowed-tools` and MCP tool references.
 
-**Create new directory:** `global/skills/claudefather-sync/`
+**Create new directory:** `global/skills/claudiator-sync/`
 
-**Create:** `global/skills/claudefather-sync/SKILL.md`
+**Create:** `global/skills/claudiator-sync/SKILL.md`
 
 ```yaml
 ---
-name: claudefather-sync
-description: "Sync skills from the claudefather registry. Checks for updates, shows diffs, and applies approved changes. Supports rollback and version pinning."
+name: claudiator-sync
+description: "Sync skills from the claudiator registry. Checks for updates, shows diffs, and applies approved changes. Supports rollback and version pinning."
 allowed-tools:
   - "Bash(git *)"
   - "Bash(diff *)"
@@ -63,11 +63,11 @@ allowed-tools:
   - "Bash(mkdir *)"
   - "Bash(cp *)"
   - "Bash(chmod *)"
-  - "mcp__claudefather__claudefather_check_updates"
-  - "mcp__claudefather__claudefather_sync"
-  - "mcp__claudefather__claudefather_rollback"
-  - "mcp__claudefather__claudefather_pin"
-  - "mcp__claudefather__claudefather_unpin"
+  - "mcp__claudiator__claudiator_check_updates"
+  - "mcp__claudiator__claudiator_sync"
+  - "mcp__claudiator__claudiator_rollback"
+  - "mcp__claudiator__claudiator_pin"
+  - "mcp__claudiator__claudiator_unpin"
   - "Read(*)"
   - "Write(*)"
   - "Glob(*)"
@@ -77,11 +77,11 @@ allowed-tools:
 
 The Markdown body of SKILL.md follows below in Step 3.
 
-**Delete:** N/A — `global/commands/claudefather-sync.md` only exists in the original claudefather repo, not in the-claudefather. No file to delete.
+**Delete:** N/A — `global/commands/claudiator-sync.md` only exists in the original claudiator repo, not in the-claudiator. No file to delete.
 
-**Update:** `global/recommended-permissions.json` — the `claudefather-mcp` category already exists from Phase 02. Add the new tool permissions for rollback, pin, unpin, and publish. The actual MCP permission naming convention is `mcp__claudefather__claudefather_<tool_name>` (double claudefather prefix — the first is the MCP server name, the second is the tool name prefix).
+**Update:** `global/recommended-permissions.json` — the `claudiator-mcp` category already exists from Phase 02. Add the new tool permissions for rollback, pin, unpin, and publish. The actual MCP permission naming convention is `mcp__claudiator__claudiator_<tool_name>` (double claudiator prefix — the first is the MCP server name, the second is the tool name prefix).
 
-**Tool naming decision (Challenge Round):** Enhance the existing `claudefather_sync` tool rather than creating a new `claudefather_sync` tool. The existing tool is extended with version-aware input and sync event logging.
+**Tool naming decision (Challenge Round):** Enhance the existing `claudiator_sync` tool rather than creating a new `claudiator_sync` tool. The existing tool is extended with version-aware input and sync event logging.
 
 ### Step 2: Design the Version File Convention
 
@@ -103,17 +103,17 @@ Each skill directory gets a `.version` file containing a single line: the semver
 
 ### Step 3: Implement the New Sync Skill Body
 
-The SKILL.md body for `global/skills/claudefather-sync/SKILL.md` (after the YAML frontmatter from Step 1):
+The SKILL.md body for `global/skills/claudiator-sync/SKILL.md` (after the YAML frontmatter from Step 1):
 
 ```markdown
-# Claudefather Sync
+# Claudiator Sync
 
-Check for skill updates from the claudefather registry and apply approved changes. Supports rollback and version pinning.
+Check for skill updates from the claudiator registry and apply approved changes. Supports rollback and version pinning.
 
 ## Mode Detection
 
-Check if the `claudefather` MCP server is configured:
-1. Look for `mcp__claudefather__claudefather_check_updates` in available tools
+Check if the `claudiator` MCP server is configured:
+1. Look for `mcp__claudiator__claudiator_check_updates` in available tools
 2. If available → MCP MODE (Steps 1-7 below)
 3. If not available → FALLBACK MODE (see Fallback section at bottom)
 
@@ -145,7 +145,7 @@ Build a manifest object:
 
 ### Step 2: Check for Updates
 
-Call the `claudefather_check_updates` MCP tool with the installed manifest.
+Call the `claudiator_check_updates` MCP tool with the installed manifest.
 
 The MCP tool compares installed versions against the registry's latest versions and returns a diff manifest:
 
@@ -192,7 +192,7 @@ The MCP tool compares installed versions against the registry's latest versions 
 Display the results in the familiar interactive format:
 
 ```
-Claudefather Sync — Registry Mode
+Claudiator Sync — Registry Mode
 ═══════════════════════════════════════════
   Updates available:
     review-pr          v1.2.0 → v1.3.0  (MINOR)
@@ -245,7 +245,7 @@ Collect the list of approved changes.
 Before making any changes, create a timestamped backup:
 
 ```bash
-BACKUP_DIR=~/.local/share/claudefather/backups/$(date +%Y-%m-%d_%H%M%S)
+BACKUP_DIR=~/.local/share/claudiator/backups/$(date +%Y-%m-%d_%H%M%S)
 mkdir -p "$BACKUP_DIR"
 cp -r ~/.claude/skills "$BACKUP_DIR"/skills 2>/dev/null || true
 cp -r ~/.claude/commands "$BACKUP_DIR"/commands 2>/dev/null || true
@@ -257,7 +257,7 @@ Print: `Backed up current files to $BACKUP_DIR`
 
 ### Step 6: Apply Approved Changes
 
-Call the `claudefather_sync` MCP tool with the list of approved skill slugs and their target versions.
+Call the `claudiator_sync` MCP tool with the list of approved skill slugs and their target versions.
 
 The MCP tool:
 1. Fetches the full content for each approved skill version from the `skill_versions` table
@@ -309,7 +309,7 @@ Sync Complete
   Skipped:    N (user declined)
   Pinned:     N (auto-skipped)
 
-  Backup: ~/.local/share/claudefather/backups/<timestamp>/
+  Backup: ~/.local/share/claudiator/backups/<timestamp>/
 
   Changes take effect at next session start.
 ═══════════════════════════════════════════
@@ -319,19 +319,19 @@ Sync Complete
 
 ## FALLBACK MODE (No MCP Server)
 
-If the `claudefather` MCP server is not configured, fall back to the legacy git-based sync. This preserves backward compatibility for users who have not set up their API token yet.
+If the `claudiator` MCP server is not configured, fall back to the legacy git-based sync. This preserves backward compatibility for users who have not set up their API token yet.
 
 ### Fallback Procedure
 
-1. Read `~/.claude/.claudefather-repo` to find the repo path
-2. If missing, tell the user to run `/claudefather-setup` and stop
+1. Read `~/.claude/.claudiator-repo` to find the repo path
+2. If missing, tell the user to run `/claudiator-setup` and stop
 3. Follow the legacy sync protocol documented in `references/sync-protocol.md`
 4. At the end, print:
 
 ```
 Note: You're using git-based sync (legacy mode).
 To upgrade to registry sync with versioning and rollback:
-1. Set up a claudefather API token
+1. Set up a claudiator API token
 2. Add the MCP server config to ~/.claude/settings.json
 See the setup guide for details.
 ```
@@ -340,12 +340,12 @@ See the setup guide for details.
 
 ## Subcommands
 
-### /claudefather-sync rollback <skill-name> [version]
+### /claudiator-sync rollback <skill-name> [version]
 
 Roll back a specific skill to a previous version.
 
 1. If no version specified, use "previous" (one version back)
-2. Call `claudefather_rollback` MCP tool with skill_slug and target_version
+2. Call `claudiator_rollback` MCP tool with skill_slug and target_version
 3. The MCP tool fetches the target version content from `skill_versions`
 4. Write the content to disk using Write tool
 5. Update `.version` file
@@ -362,12 +362,12 @@ Rollback Complete
 ═══════════════════════════════════════════
 ```
 
-### /claudefather-sync pin <skill-name> [version]
+### /claudiator-sync pin <skill-name> [version]
 
 Pin a skill to a specific version. Pinned skills are skipped during sync.
 
 1. If no version specified, pin to current installed version
-2. Call `claudefather_pin` MCP tool with skill_slug and version
+2. Call `claudiator_pin` MCP tool with skill_slug and version
 3. Print confirmation:
 
 ```
@@ -375,30 +375,30 @@ Pinned: review-pr at v1.2.0
 This skill will be skipped during sync until unpinned.
 ```
 
-### /claudefather-sync unpin <skill-name>
+### /claudiator-sync unpin <skill-name>
 
 Unpin a skill to resume tracking latest.
 
-1. Call `claudefather_unpin` MCP tool with skill_slug
+1. Call `claudiator_unpin` MCP tool with skill_slug
 2. Print confirmation:
 
 ```
 Unpinned: review-pr (was pinned at v1.2.0, latest is v1.3.0)
-Run /claudefather-sync to update.
+Run /claudiator-sync to update.
 ```
 
-### /claudefather-sync status
+### /claudiator-sync status
 
 Report-only mode. Runs Steps 1-3 without applying changes.
 ```
 
 ### Step 4: Create the Fallback Reference File
 
-**Create:** `global/skills/claudefather-sync/references/sync-protocol.md`
+**Create:** `global/skills/claudiator-sync/references/sync-protocol.md`
 
-This file contains the legacy git-based sync protocol, extracted from the current `global/commands/claudefather-sync.md`. The content is the current sync procedure (Steps 1-7 from `global/commands/claudefather-sync.md`) preserved verbatim so the fallback mode works identically to the old command.
+This file contains the legacy git-based sync protocol, extracted from the current `global/commands/claudiator-sync.md`. The content is the current sync procedure (Steps 1-7 from `global/commands/claudiator-sync.md`) preserved verbatim so the fallback mode works identically to the old command.
 
-Copy the full content of the current `global/commands/claudefather-sync.md` (lines 1-184) into this file. The only change: remove the top-level `# Claudefather Sync` title and replace it with `# Legacy Sync Protocol (Fallback)` since this is now a reference file, not the primary skill.
+Copy the full content of the current `global/commands/claudiator-sync.md` (lines 1-184) into this file. The only change: remove the top-level `# Claudiator Sync` title and replace it with `# Legacy Sync Protocol (Fallback)` since this is now a reference file, not the primary skill.
 
 Keep all steps, all notes, all the permissions merge logic (Steps 6.5, 6.6, 6.7). The fallback mode must behave identically to the current sync for users who have not yet configured the MCP server.
 
@@ -406,10 +406,10 @@ Keep all steps, all notes, all the permissions merge logic (Steps 6.5, 6.6, 6.7)
 
 These tool schemas must be implemented in the MCP server (Phase 01). Document them here so the Phase 01 implementer knows what Phase 03 expects.
 
-**Tool: `claudefather_check_updates`** (already exists from Phase 01 — extend output)
+**Tool: `claudiator_check_updates`** (already exists from Phase 01 — extend output)
 
 ```
-Name: claudefather_check_updates
+Name: claudiator_check_updates
 Description: Compare installed skill versions against the registry. Returns a diff manifest showing available updates, new skills, removed skills, and pinned skills.
 
 Input Schema (Phase 01, unchanged):
@@ -439,10 +439,10 @@ Output: JSON object with keys: updates, new_skills, removed_skills, pinned_skill
 
 **Challenge Round decision:** Full rewrite of check-updates.ts to return structured JSON instead of text.
 
-**Tool: `claudefather_sync`** (already exists from Phase 01 — enhance input schema)
+**Tool: `claudiator_sync`** (already exists from Phase 01 — enhance input schema)
 
 ```
-Name: claudefather_sync
+Name: claudiator_sync
 Description: Fetch full content for specified skill versions from the registry. Logs the sync event.
 
 Current Input Schema (Phase 01):
@@ -476,10 +476,10 @@ The actual schema uses separate content (text) + references (jsonb) columns — 
 the files map at read time (as the existing sync.ts already does).
 ```
 
-**Tool: `claudefather_rollback`**
+**Tool: `claudiator_rollback`**
 
 ```
-Name: claudefather_rollback
+Name: claudiator_rollback
 Description: Fetch a specific previous version of a skill from the registry.
 
 Input Schema:
@@ -495,14 +495,14 @@ Input Schema:
   "required": ["skill_slug", "target_version"]
 }
 
-Output: JSON object with slug, version, files map (same format as claudefather_sync response), and previous_version field.
+Output: JSON object with slug, version, files map (same format as claudiator_sync response), and previous_version field.
 Logs rollback event to sync_events table.
 ```
 
-**Tool: `claudefather_pin`**
+**Tool: `claudiator_pin`**
 
 ```
-Name: claudefather_pin
+Name: claudiator_pin
 Description: Pin a skill to a specific version. Pinned skills are skipped during sync.
 
 Input Schema:
@@ -522,10 +522,10 @@ Output: JSON object with slug, pinned_version, latest_version.
 Creates/updates record in user_skill_pins table.
 ```
 
-**Tool: `claudefather_unpin`**
+**Tool: `claudiator_unpin`**
 
 ```
-Name: claudefather_unpin
+Name: claudiator_unpin
 Description: Remove version pin from a skill, resuming tracking of latest.
 
 Input Schema:
@@ -541,10 +541,10 @@ Output: JSON object with slug, was_pinned_at, latest_version.
 Deletes record from user_skill_pins table.
 ```
 
-**Tool: `claudefather_publish` (Admin only)**
+**Tool: `claudiator_publish` (Admin only)**
 
 ```
-Name: claudefather_publish
+Name: claudiator_publish
 Description: Publish a new version of a skill to the registry. Admin-only — requires admin-scoped API token.
 
 Input Schema:
@@ -628,9 +628,9 @@ Creates new record in skill_versions with is_latest=true, sets previous latest t
 
 **Implementation:** Add this table to `packages/db/src/schema.ts` as a Drizzle `pgTable` definition alongside the existing tables. Generate migration with `drizzle-kit generate`.
 
-### Step 7: Update `/claudefather-setup` to Seed Version Files
+### Step 7: Update `/claudiator-setup` to Seed Version Files
 
-**SKIPPED (Challenge Round decision):** `claudefather-setup` does not exist in the-claudefather repo and is not needed. The first MCP sync treats missing `.version` files as `0.0.0` and offers updates for all skills, which seeds the version files automatically. This step degrades gracefully with no action required.
+**SKIPPED (Challenge Round decision):** `claudiator-setup` does not exist in the-claudiator repo and is not needed. The first MCP sync treats missing `.version` files as `0.0.0` and offers updates for all skills, which seeds the version files automatically. This step degrades gracefully with no action required.
 
 ---
 
@@ -652,9 +652,9 @@ These tests verify the MCP tool implementations in the server codebase (Phase 01
 
 6. **`check_updates` — removed skill from registry:** Installed manifest has a skill not in registry. Expect it in `removed_skills`.
 
-7. **`claudefather_sync` — basic update:** Sync `review-pr` to `1.3.0`. Verify response includes full file content. Verify `sync_events` record created.
+7. **`claudiator_sync` — basic update:** Sync `review-pr` to `1.3.0`. Verify response includes full file content. Verify `sync_events` record created.
 
-8. **`claudefather_sync` — multi-file skill:** Sync a skill with `references/` files. Verify all files included in response.
+8. **`claudiator_sync` — multi-file skill:** Sync a skill with `references/` files. Verify all files included in response.
 
 9. **`rollback` — to previous:** Rollback `review-pr` with `target_version: "previous"`. Verify returns previous version content. Verify `sync_events` logged as rollback.
 
@@ -695,25 +695,25 @@ These tests verify the skill's behavior end-to-end.
 
 6. **Rollback write verification:** After rollback, verify `.version` and SKILL.md match the target version.
 
-7. **Fallback mode full cycle:** Without MCP server, run sync end-to-end. Verify it behaves identically to the current `claudefather-sync.md` command.
+7. **Fallback mode full cycle:** Without MCP server, run sync end-to-end. Verify it behaves identically to the current `claudiator-sync.md` command.
 
 ### Manual Verification Steps
 
-1. **First-time MCP sync:** Set up MCP server with a token. Run `/claudefather-sync`. Verify all skills show as "update available" (since no `.version` files exist yet). Approve all. Verify `.version` files created.
+1. **First-time MCP sync:** Set up MCP server with a token. Run `/claudiator-sync`. Verify all skills show as "update available" (since no `.version` files exist yet). Approve all. Verify `.version` files created.
 
-2. **Subsequent sync — no changes:** Run `/claudefather-sync` again immediately. Verify "Everything up to date."
+2. **Subsequent sync — no changes:** Run `/claudiator-sync` again immediately. Verify "Everything up to date."
 
-3. **Subsequent sync — with update:** Publish a new version of one skill via `claudefather_publish`. Run sync. Verify only that skill shows as update available.
+3. **Subsequent sync — with update:** Publish a new version of one skill via `claudiator_publish`. Run sync. Verify only that skill shows as update available.
 
-4. **Status-only mode:** Run `/claudefather-sync status`. Verify it shows the status table but does not prompt for changes.
+4. **Status-only mode:** Run `/claudiator-sync status`. Verify it shows the status table but does not prompt for changes.
 
-5. **Rollback:** Run `/claudefather-sync rollback review-pr`. Verify skill content reverts to previous version.
+5. **Rollback:** Run `/claudiator-sync rollback review-pr`. Verify skill content reverts to previous version.
 
 6. **Pin and sync:** Pin a skill. Publish a new version. Run sync. Verify the pinned skill shows as "pinned (skipped)" and is NOT offered for update.
 
 7. **Unpin and sync:** Unpin the skill. Run sync. Verify it now shows as update available.
 
-8. **Fallback mode:** Remove MCP server URL from settings.json. Run `/claudefather-sync`. Verify it falls back to git-based sync with the legacy breadcrumb protocol.
+8. **Fallback mode:** Remove MCP server URL from settings.json. Run `/claudiator-sync`. Verify it falls back to git-based sync with the legacy breadcrumb protocol.
 
 ---
 
@@ -725,16 +725,16 @@ Add under `## [Unreleased]`:
 
 ```markdown
 ### Changed
-- **`/claudefather-sync` created as skill** — new skill at `global/skills/claudefather-sync/SKILL.md` with MCP-backed sync and legacy fallback via `references/sync-protocol.md`.
-- **MCP-backed sync protocol** — `/claudefather-sync` now uses the claudefather MCP server for update checking, skill content delivery, and sync event logging. Interactive approval UX preserved. Falls back to git-based sync when MCP server is not configured.
+- **`/claudiator-sync` created as skill** — new skill at `global/skills/claudiator-sync/SKILL.md` with MCP-backed sync and legacy fallback via `references/sync-protocol.md`.
+- **MCP-backed sync protocol** — `/claudiator-sync` now uses the claudiator MCP server for update checking, skill content delivery, and sync event logging. Interactive approval UX preserved. Falls back to git-based sync when MCP server is not configured.
 
 ### Added
 - **Skill versioning** — each skill gets independent semver (MAJOR.MINOR.PATCH) tracked via `.version` files in `~/.claude/skills/<name>/`. Version history stored in the registry.
-- **Rollback support** — `/claudefather-sync rollback <skill> [version]` reverts a skill to any previous version from the registry.
-- **Version pinning** — `/claudefather-sync pin <skill> [version]` freezes a skill at a specific version, skipping it during sync. `/claudefather-sync unpin <skill>` resumes tracking latest.
-- **Publishing workflow** — `claudefather_publish` MCP tool for admin to publish new skill versions with changelog entries.
+- **Rollback support** — `/claudiator-sync rollback <skill> [version]` reverts a skill to any previous version from the registry.
+- **Version pinning** — `/claudiator-sync pin <skill> [version]` freezes a skill at a specific version, skipping it during sync. `/claudiator-sync unpin <skill>` resumes tracking latest.
+- **Publishing workflow** — `claudiator_publish` MCP tool for admin to publish new skill versions with changelog entries.
 - **Sync event logging** — all sync, rollback, pin, and unpin operations logged to `sync_events` table for audit trail.
-- **MCP tools permission category** — `claudefather-mcp` category in `recommended-permissions.json` for MCP tool auto-approval.
+- **MCP tools permission category** — `claudiator-mcp` category in `recommended-permissions.json` for MCP tool auto-approval.
 ```
 
 ### README.md
@@ -744,14 +744,14 @@ Update the Configuration section to mention the new sync capabilities:
 ```markdown
 ### Sync & Versioning
 
-`/claudefather-sync` checks the registry for skill updates and applies them interactively.
+`/claudiator-sync` checks the registry for skill updates and applies them interactively.
 
-- **Status check:** `/claudefather-sync status` — see what's changed without applying
-- **Rollback:** `/claudefather-sync rollback <skill> [version]` — revert to a previous version
-- **Pin:** `/claudefather-sync pin <skill>` — freeze at current version
-- **Unpin:** `/claudefather-sync unpin <skill>` — resume tracking latest
+- **Status check:** `/claudiator-sync status` — see what's changed without applying
+- **Rollback:** `/claudiator-sync rollback <skill> [version]` — revert to a previous version
+- **Pin:** `/claudiator-sync pin <skill>` — freeze at current version
+- **Unpin:** `/claudiator-sync unpin <skill>` — resume tracking latest
 
-Requires the claudefather MCP server. Falls back to git-based sync without it.
+Requires the claudiator MCP server. Falls back to git-based sync without it.
 ```
 
 ### CLAUDE.md
@@ -784,13 +784,13 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 ### Performance Considerations
 
 - **`check_updates` call:** Single request to Railway-hosted MCP server (direct DB query). Should complete in < 2 seconds even with 34+ skills.
-- **`claudefather_sync` call:** Returns full file content for all approved skills in one MCP tool response. For a full sync of 34 skills, this could be 500KB-1MB of content. Acceptable for a single Streamable HTTP response.
+- **`claudiator_sync` call:** Returns full file content for all approved skills in one MCP tool response. For a full sync of 34 skills, this could be 500KB-1MB of content. Acceptable for a single Streamable HTTP response.
 - **Local `.version` file reads:** 34 Read tool calls. Claude Code should execute these in parallel. Total time: < 1 second.
 - **Backup `cp -r`:** Copies entire `~/.claude/skills/` directory (34 skills). At ~500KB total, this completes in < 1 second.
 
 ### Security Considerations
 
-- **API token scoping:** `claudefather_check_updates`, `claudefather_sync`, `claudefather_rollback`, `claudefather_pin`, `claudefather_unpin` require read-scoped tokens. `claudefather_publish` requires admin-scoped tokens.
+- **API token scoping:** `claudiator_check_updates`, `claudiator_sync`, `claudiator_rollback`, `claudiator_pin`, `claudiator_unpin` require read-scoped tokens. `claudiator_publish` requires admin-scoped tokens.
 - **Content integrity:** The MCP server returns skill content from the `skill_versions` table. No user input is interpolated into SKILL.md content. No injection risk.
 - **Fallback mode security:** The git-based fallback uses the same local-filesystem approach as today. No new attack surface.
 
@@ -798,12 +798,12 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 
 ## Verification Checklist
 
-- [ ] `global/skills/claudefather-sync/SKILL.md` exists with correct YAML frontmatter
-- [ ] `global/skills/claudefather-sync/references/sync-protocol.md` contains the full legacy sync procedure
-- [ ] N/A — no legacy command file exists in the-claudefather repo
+- [ ] `global/skills/claudiator-sync/SKILL.md` exists with correct YAML frontmatter
+- [ ] `global/skills/claudiator-sync/references/sync-protocol.md` contains the full legacy sync procedure
+- [ ] N/A — no legacy command file exists in the-claudiator repo
 - [ ] `global/recommended-permissions.json` updated with new tool permissions (rollback, pin, unpin, publish)
-- [ ] MCP mode: `claudefather_check_updates` tool returns structured JSON with updates/new/removed/pinned/up_to_date
-- [ ] MCP mode: `claudefather_sync` tool called with version-aware input and only user-approved skills
+- [ ] MCP mode: `claudiator_check_updates` tool returns structured JSON with updates/new/removed/pinned/up_to_date
+- [ ] MCP mode: `claudiator_sync` tool called with version-aware input and only user-approved skills
 - [ ] MCP mode: `.version` files written after each skill update
 - [ ] MCP mode: `sync_events` record created for each sync
 - [ ] Fallback mode: breadcrumb file read, legacy sync protocol followed
@@ -814,7 +814,7 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 - [ ] Publish: `skill_versions` record created, `is_latest` flags updated correctly
 - [ ] Publish: admin-only authorization enforced
 - [ ] Backup created before any disk modifications
-- [ ] Status-only mode (`/claudefather-sync status`) reports without modifying
+- [ ] Status-only mode (`/claudiator-sync status`) reports without modifying
 - [ ] Interactive approval for every change (no auto-apply)
 - [ ] CHANGELOG.md updated
 - [ ] README.md updated with sync subcommands
@@ -831,11 +831,11 @@ No changes to CLAUDE.md. The existing rules about "Never overwrite settings.json
 
 4. **Do NOT store `.version` files in the git repo.** Version files are local-only state reflecting what version each user has installed. They are generated during sync, not distributed.
 
-5. **Do NOT make the `claudefather-mcp` permission category `default: true`.** It requires the MCP server URL to be configured. Users without MCP setup would see permission errors for tools that do not exist.
+5. **Do NOT make the `claudiator-mcp` permission category `default: true`.** It requires the MCP server URL to be configured. Users without MCP setup would see permission errors for tools that do not exist.
 
 6. **Do NOT build a version history UI.** That is Phase 04 (Workshop). This phase only provides the MCP tools that the Workshop will later consume.
 
-7. **Do NOT implement automatic version bumping.** Version bumps are manual via `claudefather_publish`. Automatic bumping from the intelligence pipeline is Phase 06.
+7. **Do NOT implement automatic version bumping.** Version bumps are manual via `claudiator_publish`. Automatic bumping from the intelligence pipeline is Phase 06.
 
 8. **Do NOT modify `~/.claude/settings.json` in this phase.** The sync protocol writes to `~/.claude/skills/` only. Settings management (permissions merge, sandbox check, etc.) is preserved in the fallback protocol but not reimplemented in MCP mode -- that is a future enhancement.
 

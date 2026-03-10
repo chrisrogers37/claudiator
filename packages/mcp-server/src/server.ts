@@ -18,19 +18,19 @@ interface ServerConfig {
 
 export function createServer(config: ServerConfig): McpServer {
   const server = new McpServer({
-    name: "claudefather",
+    name: "claudiator",
     version: "1.0.0",
   });
 
   const db = createDbClient(config.databaseUrl);
 
-  // ─── claudefather_sync ─────────────────────────────────────────────────────
+  // ─── claudiator_sync ─────────────────────────────────────────────────────
   server.registerTool(
-    "claudefather_sync",
+    "claudiator_sync",
     {
       title: "Sync Skills from Registry",
       description:
-        "Fetches specific skill versions from the claudefather registry. " +
+        "Fetches specific skill versions from the claudiator registry. " +
         "Returns skill content that Claude Code should write to ~/.claude/skills/. " +
         "Logs the sync event for audit trail.",
       inputSchema: syncSchema,
@@ -38,9 +38,9 @@ export function createServer(config: ServerConfig): McpServer {
     async (args) => syncSkills(db, config.user, args)
   );
 
-  // ─── claudefather_check_updates ────────────────────────────────────────────
+  // ─── claudiator_check_updates ────────────────────────────────────────────
   server.registerTool(
-    "claudefather_check_updates",
+    "claudiator_check_updates",
     {
       title: "Check for Skill Updates",
       description:
@@ -60,9 +60,9 @@ export function createServer(config: ServerConfig): McpServer {
     async (args) => checkUpdates(db, config.user, args)
   );
 
-  // ─── claudefather_whoami ───────────────────────────────────────────────────
+  // ─── claudiator_whoami ───────────────────────────────────────────────────
   server.registerTool(
-    "claudefather_whoami",
+    "claudiator_whoami",
     {
       title: "Current User Info",
       description:
@@ -72,9 +72,9 @@ export function createServer(config: ServerConfig): McpServer {
     async () => whoami(config.user)
   );
 
-  // ─── claudefather_log_invocation ──────────────────────────────────────────
+  // ─── claudiator_log_invocation ──────────────────────────────────────────
   server.registerTool(
-    "claudefather_log_invocation",
+    "claudiator_log_invocation",
     {
       title: "Log Skill Invocation",
       description:
@@ -84,9 +84,9 @@ export function createServer(config: ServerConfig): McpServer {
     async (args) => logInvocation(db, config.user, args)
   );
 
-  // ─── claudefather_session_feedback ──────────────────────────────────────────
+  // ─── claudiator_session_feedback ──────────────────────────────────────────
   server.registerTool(
-    "claudefather_session_feedback",
+    "claudiator_session_feedback",
     {
       title: "Submit Session Feedback",
       description:
@@ -96,9 +96,9 @@ export function createServer(config: ServerConfig): McpServer {
     async (args) => sessionFeedback(db, config.user, args)
   );
 
-  // ─── claudefather_rollback ────────────────────────────────────────────────
+  // ─── claudiator_rollback ────────────────────────────────────────────────
   server.registerTool(
-    "claudefather_rollback",
+    "claudiator_rollback",
     {
       title: "Rollback Skill Version",
       description:
@@ -109,9 +109,9 @@ export function createServer(config: ServerConfig): McpServer {
     async (args) => rollback(db, config.user, args)
   );
 
-  // ─── claudefather_pin ────────────────────────────────────────────────────
+  // ─── claudiator_pin ────────────────────────────────────────────────────
   server.registerTool(
-    "claudefather_pin",
+    "claudiator_pin",
     {
       title: "Pin Skill Version",
       description:
@@ -121,9 +121,9 @@ export function createServer(config: ServerConfig): McpServer {
     async (args) => pin(db, config.user, args)
   );
 
-  // ─── claudefather_unpin ──────────────────────────────────────────────────
+  // ─── claudiator_unpin ──────────────────────────────────────────────────
   server.registerTool(
-    "claudefather_unpin",
+    "claudiator_unpin",
     {
       title: "Unpin Skill Version",
       description:
@@ -133,9 +133,9 @@ export function createServer(config: ServerConfig): McpServer {
     async (args) => unpin(db, config.user, args)
   );
 
-  // ─── claudefather_publish ────────────────────────────────────────────────
+  // ─── claudiator_publish ────────────────────────────────────────────────
   server.registerTool(
-    "claudefather_publish",
+    "claudiator_publish",
     {
       title: "Publish Skill Version",
       description:

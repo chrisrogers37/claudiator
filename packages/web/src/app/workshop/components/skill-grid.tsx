@@ -1,10 +1,10 @@
-import { createDb } from "@claudefather/db/client";
+import { createDb } from "@claudiator/db/client";
 import {
   skills,
   skillVersions,
   skillInvocations,
   skillFeedback,
-} from "@claudefather/db/schema";
+} from "@claudiator/db/schema";
 import { sql, asc, desc, SQL } from "drizzle-orm";
 import { SkillCard } from "./skill-card";
 
