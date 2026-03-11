@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@claudiator/db/client";
 import {
   battles,
@@ -10,6 +9,8 @@ import {
 import { eq } from "drizzle-orm";
 import { evolutionPrompt } from "./prompts";
 import { createBattle } from "./matchmaker";
+import { callLlm } from "./llm";
+import { emitPipelineEvent } from "./pipeline-events";
 
 export function shouldEvolve(
   championScore: number,
@@ -31,6 +32,8 @@ export async function generateEvolvedVersion(
     .where(eq(battles.id, battleId));
 
   if (!battle) return null;
+
+  await emitPipelineEvent(db, "battle", battleId, "evolving");
 
   // Get champion content
   const [championVersion] = await db
@@ -67,24 +70,21 @@ export async function generateEvolvedVersion(
     }
   }
 
-  const anthropic = new Anthropic();
   const prompt = evolutionPrompt(
     championVersion.content,
     candidate.rawContent,
     battleResultsSummary
   );
 
-  const response = await anthropic.messages.create({
+  const { text: evolvedContent } = await callLlm({
+    db,
     model: "claude-sonnet-4-20250514",
-    max_tokens: 8192,
     system: prompt.system,
-    messages: [{ role: "user", content: prompt.user }],
+    prompt: prompt.user,
+    maxTokens: 8192,
+    callType: "evolve",
+    battleId,
   });
-
-  const evolvedContent = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
 
   if (!evolvedContent) return null;
 
@@ -112,6 +112,11 @@ export async function generateEvolvedVersion(
     undefined,
     battleId
   );
+
+  await emitPipelineEvent(db, "battle", battleId, "evolved", {
+    evolvedCandidateId: newCandidate.id,
+    evolutionBattleId,
+  });
 
   console.log(
     `[arena] Created evolved candidate ${newCandidate.id} and battle ${evolutionBattleId} from battle ${battleId}`

@@ -29,12 +29,6 @@ export function IntakeActions({ candidateId, status }: IntakeActionsProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "queued" }),
         });
-      } else if (action === "create-battle") {
-        await fetch(`/api/arena/battles`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ candidateId }),
-        });
       }
       router.refresh();
     } catch (err) {
@@ -57,7 +51,6 @@ export function IntakeActions({ candidateId, status }: IntakeActionsProps) {
     new: { label: "Categorize", action: "categorize" },
     categorized: { label: "Score", action: "score" },
     scored: { label: "Queue for Battle", action: "queue" },
-    queued: { label: "Create Battle", action: "create-battle" },
   };
 
   const btn = config[status];

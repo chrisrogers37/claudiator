@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@claudiator/db/client";
 import { battleJudgments } from "@claudiator/db/schema";
 import { judgingPrompt, judgingUserPrompt } from "./prompts";
+import { callLlm } from "./llm";
 
 interface JudgmentResult {
   winner: "champion" | "challenger" | "draw";
@@ -25,26 +25,22 @@ export async function judgeRound(
   judgeIndex: number,
   scenario: ScenarioInfo,
   championOutput: string,
-  challengerOutput: string
+  challengerOutput: string,
+  battleId: string
 ): Promise<JudgmentResult> {
-  const anthropic = new Anthropic();
+  const model = "claude-haiku-4-5-20251001";
 
-  const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
+  const { text, usage, latencyMs } = await callLlm({
+    db,
+    model,
     system: judgingPrompt(),
-    messages: [
-      {
-        role: "user",
-        content: judgingUserPrompt(scenario, championOutput, challengerOutput),
-      },
-    ],
+    prompt: judgingUserPrompt(scenario, championOutput, challengerOutput),
+    maxTokens: 1024,
+    callType: "judge",
+    battleId,
+    parentEntityId: roundId,
+    parentEntityType: "battle_round",
   });
-
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
 
   let result: JudgmentResult;
   try {
@@ -69,6 +65,10 @@ export async function judgeRound(
     scores: result.scores,
     reasoning: result.reasoning,
     confidence: Math.max(0, Math.min(100, result.confidence)),
+    model,
+    latencyMs,
+    inputTokens: usage.input,
+    outputTokens: usage.output,
   });
 
   return result;

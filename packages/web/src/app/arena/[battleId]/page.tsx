@@ -11,6 +11,7 @@ import { eq, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BattleStatusBadge } from "../components/battle-status-badge";
+import { BattleExecuteButton } from "../components/battle-execute-button";
 
 export default async function BattleDetailPage({
   params,
@@ -34,6 +35,7 @@ export default async function BattleDetailPage({
       completedAt: battles.completedAt,
       createdAt: battles.createdAt,
       challengerPurpose: intakeCandidates.extractedPurpose,
+      challengerRawContent: intakeCandidates.rawContent,
       challengerSourceType: intakeCandidates.sourceType,
       championName: skills.name,
       championSlug: skills.slug,
@@ -46,6 +48,15 @@ export default async function BattleDetailPage({
 
   if (battleRows.length === 0) return notFound();
   const battle = battleRows[0];
+
+  // Extract short name from YAML frontmatter
+  const challengerNameMatch = battle.challengerRawContent.match(
+    /^name:\s*["']?(.+?)["']?\s*$/m
+  );
+  const challengerName =
+    challengerNameMatch?.[1] ||
+    battle.challengerPurpose?.slice(0, 40) ||
+    battle.challengerSourceType;
 
   // Fetch scenarios
   const scenarios = await db
@@ -114,7 +125,7 @@ export default async function BattleDetailPage({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <span className="font-mono text-lg text-orange-400">
-            {battle.challengerPurpose || battle.challengerSourceType}
+            {challengerName}
           </span>
           <span className="font-mono text-sm text-gray-600">vs</span>
           <Link
@@ -124,42 +135,69 @@ export default async function BattleDetailPage({
             {battle.championName}
           </Link>
         </div>
-        <BattleStatusBadge status={battle.status} />
+        <div className="flex items-center gap-3">
+          <BattleStatusBadge status={battle.status} />
+          {battle.status === "pending" && (
+            <BattleExecuteButton battleId={battle.id} />
+          )}
+        </div>
       </div>
 
-      {/* Scores */}
-      {battle.championScore != null && battle.challengerScore != null && (
-        <div className="flex items-center gap-6 mb-4">
-          <div className="rounded-lg border border-gray-800 bg-[#161b22] px-4 py-3 text-center">
-            <p className="font-mono text-xs text-gray-500">Champion</p>
-            <p className="font-mono text-2xl text-yellow-500">
-              {battle.championScore.toFixed(1)}
-            </p>
-          </div>
-          <span className="font-mono text-gray-600">-</span>
-          <div className="rounded-lg border border-gray-800 bg-[#161b22] px-4 py-3 text-center">
-            <p className="font-mono text-xs text-gray-500">Challenger</p>
-            <p className="font-mono text-2xl text-orange-400">
-              {battle.challengerScore.toFixed(1)}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Verdict + Vote Tally */}
+      {battle.verdict && (() => {
+        // Count judge votes from judgments
+        let champVotes = 0, challVotes = 0, drawVotes = 0;
+        for (const j of judgments) {
+          if (j.winnerId === "champion") champVotes++;
+          else if (j.winnerId === "challenger") challVotes++;
+          else drawVotes++;
+        }
+        return (
+          <div className="mb-6 space-y-3">
+            {/* Vote tally as primary metric */}
+            <div className="flex items-center gap-6">
+              <div className="rounded-lg border border-gray-800 bg-[#161b22] px-4 py-3 text-center">
+                <p className="font-mono text-xs text-gray-500">Champion Votes</p>
+                <p className="font-mono text-2xl text-yellow-500">{champVotes}</p>
+              </div>
+              <span className="font-mono text-gray-600">-</span>
+              <div className="rounded-lg border border-gray-800 bg-[#161b22] px-4 py-3 text-center">
+                <p className="font-mono text-xs text-gray-500">Challenger Votes</p>
+                <p className="font-mono text-2xl text-orange-400">{challVotes}</p>
+              </div>
+              {drawVotes > 0 && (
+                <>
+                  <span className="font-mono text-gray-600">-</span>
+                  <div className="rounded-lg border border-gray-800 bg-[#161b22] px-4 py-3 text-center">
+                    <p className="font-mono text-xs text-gray-500">Draws</p>
+                    <p className="font-mono text-2xl text-gray-400">{drawVotes}</p>
+                  </div>
+                </>
+              )}
+            </div>
 
-      {/* Verdict Banner */}
-      {battle.verdict && (
-        <div
-          className={`rounded-lg border px-4 py-3 mb-6 font-mono text-sm ${
-            battle.verdict === "champion_wins"
-              ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-500"
-              : battle.verdict === "challenger_wins"
-                ? "border-orange-400/30 bg-orange-400/10 text-orange-400"
-                : "border-gray-700 bg-gray-800/50 text-gray-400"
-          }`}
-        >
-          Verdict: {battle.verdict.replace(/_/g, " ")}
-        </div>
-      )}
+            {/* Avg scores as secondary */}
+            {battle.championScore != null && battle.challengerScore != null && (
+              <p className="font-mono text-xs text-gray-500">
+                Avg point scores: champion {battle.championScore.toFixed(1)} / challenger {battle.challengerScore.toFixed(1)}
+              </p>
+            )}
+
+            {/* Verdict banner */}
+            <div
+              className={`rounded-lg border px-4 py-3 font-mono text-sm ${
+                battle.verdict === "champion_wins"
+                  ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-500"
+                  : battle.verdict === "challenger_wins"
+                    ? "border-orange-400/30 bg-orange-400/10 text-orange-400"
+                    : "border-gray-700 bg-gray-800/50 text-gray-400"
+              }`}
+            >
+              Verdict: {battle.verdict.replace(/_/g, " ")} ({champVotes}-{challVotes}{drawVotes > 0 ? `-${drawVotes}` : ""})
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Evolution link */}
       {battle.evolutionBattleId && (
@@ -205,9 +243,19 @@ export default async function BattleDetailPage({
                 </summary>
 
                 <div className="border-t border-gray-800 px-4 py-3">
-                  <p className="font-mono text-xs text-gray-400 mb-4">
+                  <p className="font-mono text-xs text-gray-400 mb-2">
                     {scenario.description}
                   </p>
+                  <div className="rounded border border-gray-800 bg-[#0d1117] p-3 mb-4 space-y-2">
+                    <div>
+                      <p className="font-mono text-xs text-cyan-400 mb-1">Project Context</p>
+                      <p className="font-mono text-xs text-gray-400 whitespace-pre-wrap">{scenario.projectContext}</p>
+                    </div>
+                    <div>
+                      <p className="font-mono text-xs text-cyan-400 mb-1">User Prompt</p>
+                      <p className="font-mono text-xs text-gray-300 whitespace-pre-wrap">{scenario.userPrompt}</p>
+                    </div>
+                  </div>
 
                   {scenarioRounds.map((round) => {
                     const roundJudgments =
