@@ -66,24 +66,43 @@ export function scenarioGenerationPrompt(
   return {
     system: `You are a scenario designer for Claudiator's battle arena. Generate realistic test scenarios for evaluating Claude Code skills.
 
+CRITICAL RULES:
+- Every scenario MUST test the skill's PRIMARY function as described in the purpose
+- Do NOT generate scenarios that test tangential or inverse operations (e.g. if the skill creates handoff files, don't test reading/resuming from handoff files)
+- Each scenario starts from a CLEAN state — no pre-existing artifacts from the skill
+- The project context describes the codebase state, NOT prior skill outputs
+- The user prompt should trigger the skill's core functionality
+- Vary complexity through project size and context, not by changing what the skill does
+
+PROJECT CONTEXT MUST BE RICH AND DETAILED — simulate a real working session:
+- Include a realistic file tree (5-15 files) with paths
+- Include current git state (branch name, recent commits, staged/unstaged changes)
+- Include specific technical details: framework versions, package names, key dependencies
+- Include what the developer was actively working on and specific code changes in progress
+- For medium/hard: include open PRs, failing tests, architectural decisions being weighed, debugging context
+- For hard: include multi-session context like team discussions, deployment concerns, known tech debt
+- Make it feel like a snapshot of a real developer's terminal and IDE state
+
 Each scenario should include:
 - A description of the test situation
-- Project context (what kind of project, current state)
-- A user prompt (what the user would say to trigger the skill)
+- Project context (DETAILED: file tree, git state, code state, active work — NO pre-existing skill artifacts)
+- A user prompt (what the user would say to trigger the skill's primary function)
 - A difficulty level
 
 Output ONLY valid JSON array:
 [
   {
     "description": "What this scenario tests",
-    "projectContext": "Description of the project state and context",
+    "projectContext": "Detailed project state including file tree, git state, active work, etc.",
     "userPrompt": "What the user would type",
     "difficulty": "easy" | "medium" | "hard"
   }
 ]
 
 Generate exactly 3 scenarios: 1 easy, 1 medium, 1 hard.`,
-    user: `Generate battle scenarios for a skill with this purpose: "${skillPurpose}" in the "${category}" category.`,
+    user: `Generate battle scenarios for a skill with this purpose: "${skillPurpose}" in the "${category}" category.
+
+Remember: ALL 3 scenarios must test this exact purpose. Do not test the inverse operation or related-but-different functionality. Make project contexts detailed and realistic — a real snapshot of a developer's working state.`,
   };
 }
 
@@ -92,16 +111,19 @@ export function skillExecutionPrompt(
   scenario: { projectContext: string; userPrompt: string }
 ): { system: string; user: string } {
   return {
-    system: `You are Claude Code executing a skill. The skill instructions are provided below. Follow them exactly to respond to the user's request.
+    system: `You are Claude Code executing a skill in an isolated arena evaluation. The skill instructions are provided below. Follow them exactly to respond to the user's request.
 
 ## Skill Instructions
 ${skillContent.slice(0, 20_000)}
 
-## Important
-- Respond as if you are actually executing the skill in a real session
-- Show what actions you would take, what output you would produce
-- Be thorough but concise
-- Demonstrate the skill's approach to the given scenario`,
+## Arena Evaluation Rules
+- You are in a CLEAN, ISOLATED environment with NO prior session state
+- There are NO existing handoff files, session files, or artifacts from previous sessions
+- Do NOT hallucinate or fabricate the existence of files, prior sessions, or prior outputs
+- If the skill requires reading files that do not exist in this scenario, state that clearly rather than inventing content
+- Only demonstrate what the skill would PRODUCE or CREATE given the scenario
+- Show the actual output/artifacts the skill would generate
+- Be thorough but concise`,
     user: `## Project Context
 ${scenario.projectContext}
 

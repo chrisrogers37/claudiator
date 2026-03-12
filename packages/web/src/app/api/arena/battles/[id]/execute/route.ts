@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createDb } from "@claudiator/db/client";
+import { battles } from "@claudiator/db/schema";
+import { eq } from "drizzle-orm";
 import { executeBattle } from "@/lib/arena/executor";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -24,6 +26,23 @@ export async function POST(
   }
 
   const { id } = await params;
+
+  // Idempotency guard — only execute pending battles
+  const [battle] = await db
+    .select({ status: battles.status })
+    .from(battles)
+    .where(eq(battles.id, id));
+
+  if (!battle) {
+    return NextResponse.json({ error: "Battle not found" }, { status: 404 });
+  }
+
+  if (battle.status !== "pending") {
+    return NextResponse.json(
+      { error: `Battle is already ${battle.status}`, battleId: id },
+      { status: 409 }
+    );
+  }
 
   try {
     await executeBattle(db, id);

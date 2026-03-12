@@ -1,8 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@claudiator/db/client";
 import { battleScenarios, battles, intakeCandidates } from "@claudiator/db/schema";
 import { eq } from "drizzle-orm";
 import { scenarioGenerationPrompt } from "./prompts";
+import { callLlm } from "./llm";
+import { emitPipelineEvent } from "./pipeline-events";
 
 interface GeneratedScenario {
   description: string;
@@ -29,23 +30,22 @@ export async function generateScenarios(
 
   if (!candidate) throw new Error(`Candidate ${battle.challengerId} not found`);
 
-  const anthropic = new Anthropic();
+  await emitPipelineEvent(db, "battle", battleId, "generating_scenarios");
+
   const prompt = scenarioGenerationPrompt(
     candidate.extractedPurpose || "unknown",
     candidate.category || "workflow"
   );
 
-  const response = await anthropic.messages.create({
+  const { text } = await callLlm({
+    db,
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
     system: prompt.system,
-    messages: [{ role: "user", content: prompt.user }],
+    prompt: prompt.user,
+    maxTokens: 8192,
+    callType: "scenario_gen",
+    battleId,
   });
-
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
 
   let scenarios: GeneratedScenario[];
   try {

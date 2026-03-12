@@ -432,6 +432,11 @@ export const battles = pgTable(
       winThreshold: number;
     }>().notNull(),
     evolutionBattleId: uuid("evolution_battle_id"),
+    totalLlmCalls: integer("total_llm_calls"),
+    totalInputTokens: integer("total_input_tokens"),
+    totalOutputTokens: integer("total_output_tokens"),
+    totalCostCents: real("total_cost_cents"),
+    totalLatencyMs: integer("total_latency_ms"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -481,6 +486,12 @@ export const battleRounds = pgTable(
     challengerOutput: text("challenger_output").notNull(),
     championTokens: integer("champion_tokens"),
     challengerTokens: integer("challenger_tokens"),
+    championInputTokens: integer("champion_input_tokens"),
+    challengerInputTokens: integer("challenger_input_tokens"),
+    championModel: text("champion_model"),
+    challengerModel: text("challenger_model"),
+    championLatencyMs: integer("champion_latency_ms"),
+    challengerLatencyMs: integer("challenger_latency_ms"),
     executedAt: timestamp("executed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -508,6 +519,10 @@ export const battleJudgments = pgTable(
     }>().notNull(),
     reasoning: text("reasoning").notNull(),
     confidence: integer("confidence").notNull(),
+    model: text("model"),
+    latencyMs: integer("latency_ms"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("idx_judgments_round").on(table.roundId)]
@@ -536,5 +551,99 @@ export const arenaRankings = pgTable(
   (table) => [
     index("idx_rankings_category").on(table.category),
     index("idx_rankings_elo").on(table.eloRating),
+  ]
+);
+
+// ─── Arena LLM Calls (Observability) ─────────────────────────────────────────
+
+export const arenaLlmCalls = pgTable(
+  "arena_llm_calls",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    battleId: uuid("battle_id").references(() => battles.id, { onDelete: "cascade" }),
+    candidateId: uuid("candidate_id").references(() => intakeCandidates.id, { onDelete: "cascade" }),
+    callType: text("call_type", {
+      enum: [
+        "categorize",
+        "fight_score",
+        "scenario_gen",
+        "skill_exec_champion",
+        "skill_exec_challenger",
+        "judge",
+        "evolve",
+      ],
+    }).notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    totalTokens: integer("total_tokens"),
+    latencyMs: integer("latency_ms"),
+    costCents: real("cost_cents"),
+    status: text("status", {
+      enum: ["success", "error", "parse_failure", "rate_limited"],
+    }).notNull(),
+    errorMessage: text("error_message"),
+    rawResponse: text("raw_response"),
+    parentEntityId: uuid("parent_entity_id"),
+    parentEntityType: text("parent_entity_type", {
+      enum: ["battle_round", "battle_scenario", "battle_judgment", "intake_candidate"],
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_llm_calls_battle").on(table.battleId),
+    index("idx_llm_calls_candidate").on(table.candidateId),
+    index("idx_llm_calls_call_type").on(table.callType),
+    index("idx_llm_calls_created_at").on(table.createdAt),
+  ]
+);
+
+// ─── Arena ELO History ───────────────────────────────────────────────────────
+
+export const arenaEloHistory = pgTable(
+  "arena_elo_history",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    skillId: uuid("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+    battleId: uuid("battle_id")
+      .notNull()
+      .references(() => battles.id, { onDelete: "cascade" }),
+    eloBefore: real("elo_before").notNull(),
+    eloAfter: real("elo_after").notNull(),
+    eloChange: real("elo_change").notNull(),
+    opponentElo: real("opponent_elo").notNull(),
+    outcome: text("outcome", {
+      enum: ["win", "loss", "draw"],
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_elo_history_skill").on(table.skillId),
+    index("idx_elo_history_battle").on(table.battleId),
+  ]
+);
+
+// ─── Arena Pipeline Events ───────────────────────────────────────────────────
+
+export const arenaPipelineEvents = pgTable(
+  "arena_pipeline_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    entityType: text("entity_type", {
+      enum: ["candidate", "battle"],
+    }).notNull(),
+    entityId: uuid("entity_id").notNull(),
+    phase: text("phase").notNull(),
+    previousPhase: text("previous_phase"),
+    durationMs: integer("duration_ms"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_pipeline_events_entity").on(table.entityId),
+    index("idx_pipeline_events_phase").on(table.phase),
+    index("idx_pipeline_events_created_at").on(table.createdAt),
   ]
 );

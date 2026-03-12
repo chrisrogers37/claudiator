@@ -1,8 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@claudiator/db/client";
 import { intakeCandidates, skills, skillVersions } from "@claudiator/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { categorizationPrompt, fightScoringPrompt } from "./prompts";
+import { callLlm } from "./llm";
+import { emitPipelineEvent } from "./pipeline-events";
 
 export async function categorizeCandidate(
   db: Db,
@@ -15,20 +16,21 @@ export async function categorizeCandidate(
 
   if (!candidate) throw new Error(`Candidate ${candidateId} not found`);
 
-  const anthropic = new Anthropic();
+  await emitPipelineEvent(db, "candidate", candidateId, "categorizing");
+
   const prompt = categorizationPrompt(candidate.rawContent);
 
-  const response = await anthropic.messages.create({
+  const { text } = await callLlm({
+    db,
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
     system: prompt.system,
-    messages: [{ role: "user", content: prompt.user }],
+    prompt: prompt.user,
+    maxTokens: 1024,
+    callType: "categorize",
+    candidateId,
+    parentEntityId: candidateId,
+    parentEntityType: "intake_candidate",
   });
-
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
 
   let result: { purpose: string; category: string; matchesExisting: string | null };
   try {
@@ -58,6 +60,11 @@ export async function categorizeCandidate(
       updatedAt: new Date(),
     })
     .where(eq(intakeCandidates.id, candidateId));
+
+  await emitPipelineEvent(db, "candidate", candidateId, "categorized", {
+    category: result.category,
+    matchedChampion: result.matchesExisting,
+  });
 
   console.log(`[arena] Categorized ${candidateId}: ${result.category} — "${result.purpose}"`);
 }
@@ -100,24 +107,25 @@ export async function scoreFightWorthiness(
     return;
   }
 
-  const anthropic = new Anthropic();
+  await emitPipelineEvent(db, "candidate", candidateId, "scoring");
+
   const prompt = fightScoringPrompt(
     candidate.extractedPurpose || "",
     candidate.rawContent,
     championVersion.content
   );
 
-  const response = await anthropic.messages.create({
+  const { text } = await callLlm({
+    db,
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
     system: prompt.system,
-    messages: [{ role: "user", content: prompt.user }],
+    prompt: prompt.user,
+    maxTokens: 1024,
+    callType: "fight_score",
+    candidateId,
+    parentEntityId: candidateId,
+    parentEntityType: "intake_candidate",
   });
-
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
 
   let result: { score: number; reasoning: string; keyDifferences: string[] };
   try {
@@ -140,6 +148,10 @@ export async function scoreFightWorthiness(
       updatedAt: new Date(),
     })
     .where(eq(intakeCandidates.id, candidateId));
+
+  await emitPipelineEvent(db, "candidate", candidateId, "scored", {
+    fightScore: result.score,
+  });
 
   console.log(`[arena] Scored ${candidateId}: ${result.score}/100`);
 }

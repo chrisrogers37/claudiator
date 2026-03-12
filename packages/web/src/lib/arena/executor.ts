@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { Db } from "@claudiator/db/client";
 import {
   battles,
@@ -6,19 +5,30 @@ import {
   battleRounds,
   intakeCandidates,
   skillVersions,
+  arenaLlmCalls,
 } from "@claudiator/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { generateScenarios } from "./scenarios";
 import { judgeRound, aggregateJudgments } from "./judges";
 import { updateRankings } from "./rankings";
+import { callLlm } from "./llm";
+import { emitPipelineEvent } from "./pipeline-events";
 import { skillExecutionPrompt } from "./prompts";
 
 export async function executeBattle(db: Db, battleId: string): Promise<void> {
-  // Mark battle as running
-  await db
+  // Atomic CAS: only claim the battle if it's still pending
+  const [claimed] = await db
     .update(battles)
     .set({ status: "running", startedAt: new Date() })
-    .where(eq(battles.id, battleId));
+    .where(and(eq(battles.id, battleId), eq(battles.status, "pending")))
+    .returning({ id: battles.id });
+
+  if (!claimed) {
+    console.log(`[arena] Battle ${battleId} already claimed or not found, skipping`);
+    return;
+  }
+
+  await emitPipelineEvent(db, "battle", battleId, "creating_battle");
 
   try {
     const [battle] = await db
@@ -52,7 +62,6 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
       .from(battleScenarios)
       .where(eq(battleScenarios.battleId, battleId));
 
-    const anthropic = new Anthropic();
     const config = battle.config as {
       scenarioCount: number;
       roundsPerScenario: number;
@@ -62,10 +71,11 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
 
     const allJudgments: Awaited<ReturnType<typeof judgeRound>>[] = [];
 
+    await emitPipelineEvent(db, "battle", battleId, "executing_rounds");
+
     // Step 2: Execute rounds for each scenario
     for (const scenario of scenarios) {
       for (let round = 0; round < config.roundsPerScenario; round++) {
-        // Execute both skills in parallel
         const championPrompt = skillExecutionPrompt(championVersion.content, {
           projectContext: scenario.projectContext,
           userPrompt: scenario.userPrompt,
@@ -75,45 +85,54 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
           userPrompt: scenario.userPrompt,
         });
 
-        const [championResponse, challengerResponse] = await Promise.all([
-          anthropic.messages.create({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 4096,
+        const championModel = "claude-sonnet-4-20250514";
+        const challengerModel = "claude-sonnet-4-20250514";
+
+        // Execute both skills in parallel
+        const [championResult, challengerResult] = await Promise.all([
+          callLlm({
+            db,
+            model: championModel,
             system: championPrompt.system,
-            messages: [{ role: "user", content: championPrompt.user }],
+            prompt: championPrompt.user,
+            maxTokens: 4096,
+            callType: "skill_exec_champion",
+            battleId,
           }),
-          anthropic.messages.create({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 4096,
+          callLlm({
+            db,
+            model: challengerModel,
             system: challengerPrompt.system,
-            messages: [{ role: "user", content: challengerPrompt.user }],
+            prompt: challengerPrompt.user,
+            maxTokens: 4096,
+            callType: "skill_exec_challenger",
+            battleId,
           }),
         ]);
 
-        const championOutput = championResponse.content
-          .filter((b): b is Anthropic.TextBlock => b.type === "text")
-          .map((b) => b.text)
-          .join("");
-        const challengerOutput = challengerResponse.content
-          .filter((b): b is Anthropic.TextBlock => b.type === "text")
-          .map((b) => b.text)
-          .join("");
-
-        // Store round
+        // Store round with extended metrics
         const [roundRecord] = await db
           .insert(battleRounds)
           .values({
             battleId,
             scenarioId: scenario.id,
             roundIndex: round,
-            championOutput,
-            challengerOutput,
-            championTokens: championResponse.usage?.output_tokens ?? null,
-            challengerTokens: challengerResponse.usage?.output_tokens ?? null,
+            championOutput: championResult.text,
+            challengerOutput: challengerResult.text,
+            championTokens: championResult.usage.output,
+            challengerTokens: challengerResult.usage.output,
+            championInputTokens: championResult.usage.input,
+            challengerInputTokens: challengerResult.usage.input,
+            championModel,
+            challengerModel,
+            championLatencyMs: championResult.latencyMs,
+            challengerLatencyMs: challengerResult.latencyMs,
           })
           .returning({ id: battleRounds.id });
 
-        // Step 3: Judge the round with 5 judges in parallel
+        // Step 3: Judge the round with judges in parallel
+        await emitPipelineEvent(db, "battle", battleId, "judging");
+
         await db
           .update(battles)
           .set({ status: "judging" })
@@ -124,7 +143,7 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
             description: scenario.description,
             projectContext: scenario.projectContext,
             userPrompt: scenario.userPrompt,
-          }, championOutput, challengerOutput)
+          }, championResult.text, challengerResult.text, battleId)
         );
 
         const roundJudgments = await Promise.all(judgePromises);
@@ -132,8 +151,22 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
       }
     }
 
+    await emitPipelineEvent(db, "battle", battleId, "aggregating");
+
     // Step 4: Aggregate and determine verdict
     const { verdict, championScore, challengerScore } = aggregateJudgments(allJudgments);
+
+    // Aggregate LLM usage for this battle
+    const [llmAggregates] = await db
+      .select({
+        totalCalls: sql<number>`count(*)::int`,
+        totalInput: sql<number>`coalesce(sum(${arenaLlmCalls.inputTokens}), 0)::int`,
+        totalOutput: sql<number>`coalesce(sum(${arenaLlmCalls.outputTokens}), 0)::int`,
+        totalCost: sql<number>`coalesce(sum(${arenaLlmCalls.costCents}), 0)`,
+        totalLatency: sql<number>`coalesce(sum(${arenaLlmCalls.latencyMs}), 0)::int`,
+      })
+      .from(arenaLlmCalls)
+      .where(eq(arenaLlmCalls.battleId, battleId));
 
     await db
       .update(battles)
@@ -142,6 +175,11 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
         verdict,
         championScore,
         challengerScore,
+        totalLlmCalls: llmAggregates?.totalCalls ?? null,
+        totalInputTokens: llmAggregates?.totalInput ?? null,
+        totalOutputTokens: llmAggregates?.totalOutput ?? null,
+        totalCostCents: llmAggregates?.totalCost ?? null,
+        totalLatencyMs: llmAggregates?.totalLatency ?? null,
         completedAt: new Date(),
       })
       .where(eq(battles.id, battleId));
@@ -154,7 +192,15 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
       .where(eq(intakeCandidates.id, battle.challengerId));
 
     // Update rankings
-    await updateRankings(db, battle.championSkillId, verdict);
+    await updateRankings(db, battle.championSkillId, verdict, battleId);
+
+    await emitPipelineEvent(db, "battle", battleId, "complete", {
+      verdict,
+      championScore,
+      challengerScore,
+      totalLlmCalls: llmAggregates?.totalCalls,
+      totalCostCents: llmAggregates?.totalCost,
+    });
 
     console.log(
       `[arena] Battle ${battleId} complete: ${verdict} (champion: ${championScore.toFixed(1)}, challenger: ${challengerScore.toFixed(1)})`
@@ -164,6 +210,11 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
       .update(battles)
       .set({ status: "failed", completedAt: new Date() })
       .where(eq(battles.id, battleId));
+
+    await emitPipelineEvent(db, "battle", battleId, "failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     console.error(`[arena] Battle ${battleId} failed:`, error);
     throw error;
   }

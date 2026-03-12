@@ -70,17 +70,57 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { candidateId, championSkillId, championVersionId } =
-    await request.json();
+  const body = await request.json();
+  const { candidateId } = body;
 
-  if (!candidateId || !championSkillId || !championVersionId) {
+  if (!candidateId) {
     return NextResponse.json(
-      { error: "candidateId, championSkillId, and championVersionId are required" },
+      { error: "candidateId is required" },
       { status: 400 }
     );
   }
 
   try {
+    // Resolve champion from the candidate's matchedChampionSkillId
+    let { championSkillId, championVersionId } = body;
+
+    if (!championSkillId || !championVersionId) {
+      const [candidate] = await db
+        .select()
+        .from(intakeCandidates)
+        .where(eq(intakeCandidates.id, candidateId));
+
+      if (!candidate?.matchedChampionSkillId) {
+        return NextResponse.json(
+          { error: "Candidate has no matched champion skill" },
+          { status: 400 }
+        );
+      }
+
+      championSkillId = candidate.matchedChampionSkillId;
+
+      const { skillVersions } = await import("@claudiator/db/schema");
+      const { and } = await import("drizzle-orm");
+      const [version] = await db
+        .select({ id: skillVersions.id })
+        .from(skillVersions)
+        .where(
+          and(
+            eq(skillVersions.skillId, championSkillId),
+            eq(skillVersions.isLatest, true)
+          )
+        );
+
+      if (!version) {
+        return NextResponse.json(
+          { error: "No latest version found for champion skill" },
+          { status: 400 }
+        );
+      }
+
+      championVersionId = version.id;
+    }
+
     const battleId = await createBattle(
       db,
       candidateId,

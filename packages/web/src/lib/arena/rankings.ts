@@ -1,5 +1,5 @@
 import type { Db } from "@claudiator/db/client";
-import { arenaRankings } from "@claudiator/db/schema";
+import { arenaRankings, arenaEloHistory } from "@claudiator/db/schema";
 import { eq } from "drizzle-orm";
 
 const K_FACTOR = 32;
@@ -16,7 +16,8 @@ function calculateElo(
 export async function updateRankings(
   db: Db,
   championSkillId: string,
-  verdict: "champion_wins" | "challenger_wins" | "draw"
+  verdict: "champion_wins" | "challenger_wins" | "draw",
+  battleId: string
 ): Promise<void> {
   // Get or create ranking for champion
   let [ranking] = await db
@@ -33,10 +34,12 @@ export async function updateRankings(
 
   // Challenger doesn't have a skill record yet, so use default 1200 ELO
   const challengerElo = 1200;
+  const eloBefore = ranking.eloRating;
   const outcome: 1 | 0 | 0.5 =
     verdict === "champion_wins" ? 1 : verdict === "challenger_wins" ? 0 : 0.5;
 
-  const newElo = calculateElo(ranking.eloRating, challengerElo, outcome);
+  const eloAfter = calculateElo(ranking.eloRating, challengerElo, outcome);
+  const eloChange = eloAfter - eloBefore;
   const newWins = ranking.wins + (verdict === "champion_wins" ? 1 : 0);
   const newLosses = ranking.losses + (verdict === "challenger_wins" ? 1 : 0);
   const newDraws = ranking.draws + (verdict === "draw" ? 1 : 0);
@@ -50,12 +53,26 @@ export async function updateRankings(
       losses: newLosses,
       draws: newDraws,
       winRate: newWinRate,
-      eloRating: newElo,
+      eloRating: eloAfter,
       title: assignTitle(newWins, newLosses, newDraws),
       lastBattleAt: new Date(),
       updatedAt: new Date(),
     })
     .where(eq(arenaRankings.skillId, championSkillId));
+
+  // Record ELO history
+  const eloOutcome: "win" | "loss" | "draw" =
+    verdict === "champion_wins" ? "win" : verdict === "challenger_wins" ? "loss" : "draw";
+
+  await db.insert(arenaEloHistory).values({
+    skillId: championSkillId,
+    battleId,
+    eloBefore,
+    eloAfter,
+    eloChange,
+    opponentElo: challengerElo,
+    outcome: eloOutcome,
+  });
 }
 
 export function assignTitle(wins: number, losses: number, draws: number): string {
