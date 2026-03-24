@@ -4,9 +4,9 @@ import {
   intakeCandidates,
   skills,
 } from "@claudiator/db/schema";
-import { eq, sql, desc, or } from "drizzle-orm";
-import Link from "next/link";
-import { BattleStatusBadge } from "./components/battle-status-badge";
+import { eq, sql, desc } from "drizzle-orm";
+import { ArenaHero } from "./components/arena-hero";
+import { FightCard } from "./components/fight-card";
 
 export default async function ArenaPage() {
   const db = createDb(process.env.DATABASE_URL!);
@@ -32,6 +32,7 @@ export default async function ArenaPage() {
       challengerScore: battles.challengerScore,
       createdAt: battles.createdAt,
       challengerPurpose: intakeCandidates.extractedPurpose,
+      challengerRawContent: intakeCandidates.rawContent,
       challengerSourceType: intakeCandidates.sourceType,
       championName: skills.name,
       championSlug: skills.slug,
@@ -42,22 +43,60 @@ export default async function ArenaPage() {
     .orderBy(desc(battles.createdAt))
     .limit(5);
 
+  // Extract challenger names
+  const battlesWithNames = recentBattles.map((b) => {
+    const nameMatch = b.challengerRawContent.match(
+      /^name:\s*["']?(.+?)["']?\s*$/m
+    );
+    return {
+      ...b,
+      challengerName:
+        nameMatch?.[1] ||
+        b.challengerPurpose?.slice(0, 40) ||
+        b.challengerSourceType,
+    };
+  });
+
+  // Featured battle: most recent active, or most recent complete
+  const featured =
+    battlesWithNames.find(
+      (b) => b.status === "running" || b.status === "judging"
+    ) || battlesWithNames[0];
+
+  const stats = [
+    { label: "Total Battles", value: statsResult.total, border: "border-l-gray-500" },
+    { label: "Active", value: statsResult.active, border: "border-l-cyan-400", color: "text-cyan-400" },
+    { label: "Champion Wins", value: statsResult.championWins, border: "border-l-yellow-500", color: "text-yellow-500" },
+    { label: "Challenger Wins", value: statsResult.challengerWins, border: "border-l-orange-400", color: "text-orange-400" },
+    { label: "Draws", value: statsResult.draws, border: "border-l-gray-500" },
+  ];
+
   return (
     <>
-      <h1 className="font-mono text-2xl text-yellow-500 mb-6">Arena</h1>
+      <ArenaHero />
 
-      {/* Quick Stats */}
+      {/* Featured Battle */}
+      {featured && (
+        <div className="mb-8">
+          <h2 className="font-mono text-xs text-gray-500 uppercase tracking-wider mb-3">
+            Featured Battle
+          </h2>
+          <FightCard
+            id={featured.id}
+            championName={featured.championName}
+            challengerName={featured.challengerName || "\u2014"}
+            status={featured.status}
+            verdict={featured.verdict}
+          />
+        </div>
+      )}
+
+      {/* Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">
-        {[
-          { label: "Total Battles", value: statsResult.total },
-          { label: "Active", value: statsResult.active, color: "text-cyan-400" },
-          { label: "Champion Wins", value: statsResult.championWins, color: "text-yellow-500" },
-          { label: "Challenger Wins", value: statsResult.challengerWins, color: "text-orange-400" },
-          { label: "Draws", value: statsResult.draws },
-        ].map((stat) => (
+        {stats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-lg border border-gray-800 bg-[#161b22] p-4"
+            className={`rounded-lg border border-gray-800 bg-[#161b22] p-4 border-l-2 ${stat.border}`}
           >
             <p className="font-mono text-xs text-gray-500 uppercase tracking-wider">
               {stat.label}
@@ -71,59 +110,27 @@ export default async function ArenaPage() {
         ))}
       </div>
 
-      {/* Recent Battles */}
-      <h2 className="font-mono text-sm text-gray-400 uppercase tracking-wider mb-3">
-        Recent Battles
+      {/* Recent Results */}
+      <h2 className="font-mono text-xs text-gray-500 uppercase tracking-wider mb-3">
+        Recent Results
       </h2>
 
-      {recentBattles.length === 0 ? (
+      {battlesWithNames.length === 0 ? (
         <p className="font-mono text-sm text-gray-500">
           No battles yet. Submit a candidate in the Intake queue to get started.
         </p>
       ) : (
-        <div className="space-y-3">
-          {recentBattles.map((battle) => (
-            <Link
+        <div className="space-y-2">
+          {battlesWithNames.map((battle) => (
+            <FightCard
               key={battle.id}
-              href={`/arena/${battle.id}`}
-              className="block rounded-lg border border-gray-800 bg-[#161b22] p-4 hover:border-gray-700 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-sm text-orange-400">
-                    {battle.challengerPurpose || battle.challengerSourceType}
-                  </span>
-                  <span className="font-mono text-xs text-gray-600">vs</span>
-                  <span className="font-mono text-sm text-yellow-500">
-                    {battle.championName}
-                  </span>
-                </div>
-                <BattleStatusBadge status={battle.status} />
-              </div>
-
-              {battle.verdict && (
-                <div className="flex items-center gap-4 mt-2">
-                  <span
-                    className={`font-mono text-xs ${
-                      battle.verdict === "champion_wins"
-                        ? "text-yellow-500"
-                        : battle.verdict === "challenger_wins"
-                          ? "text-orange-400"
-                          : "text-gray-400"
-                    }`}
-                  >
-                    {battle.verdict.replace(/_/g, " ")}
-                  </span>
-                  {battle.championScore != null &&
-                    battle.challengerScore != null && (
-                      <span className="font-mono text-xs text-gray-500">
-                        {battle.championScore.toFixed(1)} -{" "}
-                        {battle.challengerScore.toFixed(1)}
-                      </span>
-                    )}
-                </div>
-              )}
-            </Link>
+              id={battle.id}
+              championName={battle.championName}
+              challengerName={battle.challengerName || "\u2014"}
+              status={battle.status}
+              verdict={battle.verdict}
+              compact
+            />
           ))}
         </div>
       )}

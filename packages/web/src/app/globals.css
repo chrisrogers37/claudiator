@@ -1,2 +1,20 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+
+@keyframes arena-glow-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes verdict-reveal {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@utility animate-arena-pulse {
+  animation: arena-glow-pulse 2s ease-in-out infinite;
+}
+
+@utility animate-verdict-reveal {
+  animation: verdict-reveal 0.5s ease-out forwards;
+}

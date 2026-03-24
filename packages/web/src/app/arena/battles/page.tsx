@@ -6,9 +6,8 @@ import {
   skillVersions,
 } from "@claudiator/db/schema";
 import { eq, desc, and } from "drizzle-orm";
-import Link from "next/link";
-import { BattleStatusBadge } from "../components/battle-status-badge";
 import { NewBattleForm } from "../components/new-battle-form";
+import { FightCard } from "../components/fight-card";
 
 export default async function BattlesPage() {
   const db = createDb(process.env.DATABASE_URL!);
@@ -48,7 +47,7 @@ export default async function BattlesPage() {
         nameMatch?.[1] ||
         b.challengerPurpose?.slice(0, 40) ||
         b.challengerSourceUrl ||
-        "—",
+        "\u2014",
     };
   });
 
@@ -101,7 +100,9 @@ export default async function BattlesPage() {
 
   return (
     <>
-      <h1 className="font-mono text-2xl text-yellow-500 mb-6">Battles</h1>
+      <h1 className="font-mono text-2xl text-yellow-500 mb-6">
+        {"\u2694"} Battles
+      </h1>
 
       {/* New Battle */}
       <NewBattleForm champions={champions} candidates={candidates} />
@@ -116,88 +117,19 @@ export default async function BattlesPage() {
           No battles yet. Create one above or submit candidates via Intake.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full font-mono text-xs">
-            <thead>
-              <tr className="text-left text-gray-500 uppercase tracking-wider">
-                <th className="pb-2 pr-4">Champion</th>
-                <th className="pb-2 pr-4">Challenger</th>
-                <th className="pb-2 pr-4">Status</th>
-                <th className="pb-2 pr-4">Verdict</th>
-                <th className="pb-2 pr-4">Score</th>
-                <th className="pb-2 pr-4">LLM Calls</th>
-                <th className="pb-2 pr-4">Cost</th>
-                <th className="pb-2"></th>
-              </tr>
-            </thead>
-            <tbody className="text-gray-300">
-              {battlesWithNames.map((battle) => (
-                <tr key={battle.id} className="border-t border-gray-800">
-                  <td className="py-3 pr-4">
-                    <span className="text-yellow-500">{battle.championName}</span>
-                  </td>
-                  <td className="py-3 pr-4 max-w-48 truncate">
-                    <span className="text-orange-400">
-                      {battle.challengerName}
-                    </span>
-                  </td>
-                  <td className="py-3 pr-4">
-                    <BattleStatusBadge status={battle.status} />
-                  </td>
-                  <td className="py-3 pr-4">
-                    {battle.verdict ? (
-                      <span
-                        className={
-                          battle.verdict === "champion_wins"
-                            ? "text-yellow-500"
-                            : battle.verdict === "challenger_wins"
-                              ? "text-orange-400"
-                              : "text-gray-400"
-                        }
-                      >
-                        {battle.verdict.replace(/_/g, " ")}
-                      </span>
-                    ) : (
-                      <span className="text-gray-600">—</span>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4">
-                    {battle.championScore != null && battle.challengerScore != null ? (
-                      <span className="text-gray-400">
-                        {battle.championScore.toFixed(1)} - {battle.challengerScore.toFixed(1)}
-                      </span>
-                    ) : (
-                      <span className="text-gray-600">—</span>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4">
-                    {battle.totalLlmCalls != null ? (
-                      <span className="text-gray-400">{battle.totalLlmCalls}</span>
-                    ) : (
-                      <span className="text-gray-600">—</span>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4">
-                    {battle.totalCostCents != null ? (
-                      <span className="text-gray-400">
-                        ${(battle.totalCostCents / 100).toFixed(3)}
-                      </span>
-                    ) : (
-                      <span className="text-gray-600">—</span>
-                    )}
-                  </td>
-                  <td className="py-3">
-                    <Link
-                      href={`/arena/${battle.id}`}
-                      className="text-cyan-400 hover:underline"
-                    >
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-3">
+          {battlesWithNames.map((battle) => (
+            <FightCard
+              key={battle.id}
+              id={battle.id}
+              championName={battle.championName}
+              challengerName={battle.challengerName}
+              status={battle.status}
+              verdict={battle.verdict}
+              totalLlmCalls={battle.totalLlmCalls}
+              totalCostCents={battle.totalCostCents}
+            />
+          ))}
         </div>
       )}
     </>

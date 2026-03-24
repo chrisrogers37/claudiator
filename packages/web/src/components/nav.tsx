@@ -31,12 +31,14 @@ export async function Nav() {
           >
             Learnings
           </a>
-          <a
-            href="/arena"
-            className="font-mono text-xs text-yellow-500 hover:text-yellow-400"
-          >
-            Arena
-          </a>
+          <span className="border-l border-gray-700 ml-2 pl-2">
+            <a
+              href="/arena"
+              className="font-mono text-xs text-yellow-500 hover:text-yellow-400 border border-yellow-500/30 rounded px-2 py-0.5 hover:border-yellow-500/60 hover:shadow-[0_0_8px_rgba(234,179,8,0.15)] transition-all"
+            >
+              {"\u2694"} Arena
+            </a>
+          </span>
           {role === "admin" && (
             <a
               href="/admin"
