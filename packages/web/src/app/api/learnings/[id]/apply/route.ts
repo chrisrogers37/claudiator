@@ -25,7 +25,23 @@ export async function POST(
     );
   }
 
-  await db
+  // Read all link state before the transaction (neon-http batch transactions
+  // don't support interactive reads, so we compute target state in JS first)
+  const allLinks = await db
+    .select({ skillSlug: learningSkillLinks.skillSlug, status: learningSkillLinks.status })
+    .from(learningSkillLinks)
+    .where(eq(learningSkillLinks.learningId, id));
+
+  // Compute what the state will be after the update
+  const updatedLinks = allLinks.map((link) =>
+    link.skillSlug === skillSlug ? { ...link, status: action } : link
+  );
+  const hasPending = updatedLinks.some((l) => l.status === "pending");
+  const hasApplied = updatedLinks.some((l) => l.status === "applied");
+
+  // Atomically update link status and (if all resolved) learning status.
+  // Uses db.batch when multiple writes needed (neon-http doesn't support db.transaction).
+  const updateLink = db
     .update(learningSkillLinks)
     .set({ status: action, updatedAt: new Date() })
     .where(
@@ -35,33 +51,16 @@ export async function POST(
       )
     );
 
-  // If all links for this learning are resolved, update learning status
-  const pendingLinks = await db
-    .select({ id: learningSkillLinks.id })
-    .from(learningSkillLinks)
-    .where(
-      and(
-        eq(learningSkillLinks.learningId, id),
-        eq(learningSkillLinks.status, "pending")
-      )
-    );
-
-  if (pendingLinks.length === 0) {
-    const appliedLinks = await db
-      .select({ id: learningSkillLinks.id })
-      .from(learningSkillLinks)
-      .where(
-        and(
-          eq(learningSkillLinks.learningId, id),
-          eq(learningSkillLinks.status, "applied")
-        )
-      );
-
-    const newStatus = appliedLinks.length > 0 ? "applied" : "dismissed";
-    await db
-      .update(learnings)
-      .set({ status: newStatus, updatedAt: new Date() })
-      .where(eq(learnings.id, id));
+  if (!hasPending) {
+    const newStatus = hasApplied ? "applied" : "dismissed";
+    await db.batch([
+      updateLink,
+      db.update(learnings)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(eq(learnings.id, id)),
+    ]);
+  } else {
+    await updateLink;
   }
 
   return NextResponse.json({ ok: true });

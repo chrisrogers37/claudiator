@@ -84,13 +84,11 @@ export async function rotateToken(
 
   if (!existing) return null;
 
-  // Revoke the old token
-  await db
-    .update(apiTokens)
-    .set({ revokedAt: new Date() })
-    .where(eq(apiTokens.id, tokenId));
-
-  // Generate a new token with the same name and remaining expiration
+  // Prepare new token values before entering the transaction
+  const rawBytes = randomBytes(TOKEN_BYTES);
+  const rawToken = TOKEN_PREFIX + rawBytes.toString("hex");
+  const tokenHash = await bcrypt.hash(rawToken, BCRYPT_ROUNDS);
+  const tokenPrefix = rawToken.slice(0, 11);
   const remainingDays = existing.expiresAt
     ? Math.max(
         1,
@@ -99,6 +97,34 @@ export async function rotateToken(
         )
       )
     : null;
+  const expiresAt = remainingDays
+    ? new Date(Date.now() + remainingDays * 24 * 60 * 60 * 1000)
+    : null;
 
-  return generateToken(userId, existing.name, remainingDays);
+  // Batch: insert new token + revoke old one atomically.
+  // If insert fails, old token remains valid (neon-http wraps batch in BEGIN/COMMIT).
+  const results = await db.batch([
+    db.insert(apiTokens)
+      .values({
+        userId,
+        tokenHash,
+        tokenPrefix,
+        name: existing.name,
+        expiresAt,
+      })
+      .returning(),
+    db.update(apiTokens)
+      .set({ revokedAt: new Date() })
+      .where(eq(apiTokens.id, tokenId)),
+  ]);
+
+  const newToken = results[0][0];
+
+  return {
+    id: newToken.id,
+    rawToken,
+    name: existing.name,
+    prefix: tokenPrefix,
+    expiresAt,
+  };
 }

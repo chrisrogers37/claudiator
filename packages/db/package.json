@@ -6,7 +6,8 @@
   "exports": {
     "./schema": "./dist/schema.js",
     "./client": "./dist/client.js",
-    "./auth": "./dist/auth.js"
+    "./auth": "./dist/auth.js",
+    "./publish": "./dist/publish.js"
   },
   "scripts": {
     "build": "tsc",

@@ -19,7 +19,7 @@ export async function updateRankings(
   verdict: "champion_wins" | "challenger_wins" | "draw",
   battleId: string
 ): Promise<void> {
-  // Get or create ranking for champion
+  // Get or create ranking for champion (read before transaction)
   let [ranking] = await db
     .select()
     .from(arenaRankings)
@@ -46,33 +46,36 @@ export async function updateRankings(
   const totalGames = newWins + newLosses + newDraws;
   const newWinRate = totalGames > 0 ? newWins / totalGames : 0;
 
-  await db
-    .update(arenaRankings)
-    .set({
-      wins: newWins,
-      losses: newLosses,
-      draws: newDraws,
-      winRate: newWinRate,
-      eloRating: eloAfter,
-      title: assignTitle(newWins, newLosses, newDraws),
-      lastBattleAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(arenaRankings.skillId, championSkillId));
-
-  // Record ELO history
   const eloOutcome: "win" | "loss" | "draw" =
     verdict === "champion_wins" ? "win" : verdict === "challenger_wins" ? "loss" : "draw";
 
-  await db.insert(arenaEloHistory).values({
-    skillId: championSkillId,
-    battleId,
-    eloBefore,
-    eloAfter,
-    eloChange,
-    opponentElo: challengerElo,
-    outcome: eloOutcome,
-  });
+  // Atomically update ranking + record ELO history (neon-http batch).
+  // LIMITATION: read-then-write without serializable isolation — if two battles
+  // for the same champion complete concurrently, one ELO update can be lost.
+  // Acceptable because the matchmaker runs battles serially per champion.
+  await db.batch([
+    db.update(arenaRankings)
+      .set({
+        wins: newWins,
+        losses: newLosses,
+        draws: newDraws,
+        winRate: newWinRate,
+        eloRating: eloAfter,
+        title: assignTitle(newWins, newLosses, newDraws),
+        lastBattleAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(arenaRankings.skillId, championSkillId)),
+    db.insert(arenaEloHistory).values({
+      skillId: championSkillId,
+      battleId,
+      eloBefore,
+      eloAfter,
+      eloChange,
+      opponentElo: challengerElo,
+      outcome: eloOutcome,
+    }),
+  ]);
 }
 
 export function assignTitle(wins: number, losses: number, draws: number): string {
