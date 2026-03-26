@@ -168,11 +168,10 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
       .from(arenaLlmCalls)
       .where(eq(arenaLlmCalls.battleId, battleId));
 
-    // Atomically: update battle verdict + candidate status
+    // Atomically: update battle verdict + candidate status (neon-http batch)
     const candidateStatus = verdict === "challenger_wins" ? "promoted" : "rejected";
-    await db.transaction(async (tx) => {
-      await tx
-        .update(battles)
+    await db.batch([
+      db.update(battles)
         .set({
           status: "complete",
           verdict,
@@ -185,13 +184,11 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
           totalLatencyMs: llmAggregates?.totalLatency ?? null,
           completedAt: new Date(),
         })
-        .where(eq(battles.id, battleId));
-
-      await tx
-        .update(intakeCandidates)
+        .where(eq(battles.id, battleId)),
+      db.update(intakeCandidates)
         .set({ status: candidateStatus as "promoted" | "rejected", updatedAt: new Date() })
-        .where(eq(intakeCandidates.id, battle.challengerId));
-    });
+        .where(eq(intakeCandidates.id, battle.challengerId)),
+    ]);
 
     // Update rankings (separate from completion transaction — if this fails,
     // battle and candidate are in correct states, just ELO is stale)

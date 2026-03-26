@@ -17,26 +17,25 @@ interface PromoteVersionParams {
   changelog?: string;
 }
 
+function unsetLatestQuery(db: Db, skillId: string) {
+  return db
+    .update(skillVersions)
+    .set({ isLatest: false })
+    .where(and(eq(skillVersions.skillId, skillId), eq(skillVersions.isLatest, true)));
+}
+
+function touchSkillQuery(db: Db, skillId: string) {
+  return db.update(skills).set({ updatedAt: new Date() }).where(eq(skills.id, skillId));
+}
+
 /**
  * Publish a new skill version, atomically unsetting the old latest and inserting the new one.
- * Uses a batch transaction to prevent the skill from becoming invisible if the insert fails.
+ * Uses db.batch() (neon-http doesn't support interactive transactions).
  */
 export async function publishNewVersion(db: Db, params: PublishNewVersionParams) {
-  return db.transaction(async (tx) => {
-    // Unset current latest
-    await tx
-      .update(skillVersions)
-      .set({ isLatest: false })
-      .where(
-        and(
-          eq(skillVersions.skillId, params.skillId),
-          eq(skillVersions.isLatest, true)
-        )
-      );
-
-    // Insert new version as latest
-    const [created] = await tx
-      .insert(skillVersions)
+  const results = await db.batch([
+    unsetLatestQuery(db, params.skillId),
+    db.insert(skillVersions)
       .values({
         skillId: params.skillId,
         version: params.version,
@@ -49,48 +48,26 @@ export async function publishNewVersion(db: Db, params: PublishNewVersionParams)
       .returning({
         version: skillVersions.version,
         publishedAt: skillVersions.publishedAt,
-      });
+      }),
+    touchSkillQuery(db, params.skillId),
+  ]);
 
-    // Update skill timestamp
-    await tx
-      .update(skills)
-      .set({ updatedAt: new Date() })
-      .where(eq(skills.id, params.skillId));
-
-    return created;
-  });
+  return results[1][0];
 }
 
 /**
  * Promote an existing version to latest, atomically unsetting the old latest.
  */
 export async function promoteVersion(db: Db, params: PromoteVersionParams) {
-  return db.transaction(async (tx) => {
-    // Unset current latest
-    await tx
-      .update(skillVersions)
-      .set({ isLatest: false })
-      .where(
-        and(
-          eq(skillVersions.skillId, params.skillId),
-          eq(skillVersions.isLatest, true)
-        )
-      );
-
-    // Set the specified version as latest
-    await tx
-      .update(skillVersions)
+  await db.batch([
+    unsetLatestQuery(db, params.skillId),
+    db.update(skillVersions)
       .set({
         isLatest: true,
-        changelog: params.changelog || undefined,
+        changelog: params.changelog ?? undefined,
         publishedAt: new Date(),
       })
-      .where(eq(skillVersions.id, params.versionId));
-
-    // Update skill timestamp
-    await tx
-      .update(skills)
-      .set({ updatedAt: new Date() })
-      .where(eq(skills.id, params.skillId));
-  });
+      .where(eq(skillVersions.id, params.versionId)),
+    touchSkillQuery(db, params.skillId),
+  ]);
 }

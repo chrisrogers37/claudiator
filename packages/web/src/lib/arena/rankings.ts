@@ -49,10 +49,12 @@ export async function updateRankings(
   const eloOutcome: "win" | "loss" | "draw" =
     verdict === "champion_wins" ? "win" : verdict === "challenger_wins" ? "loss" : "draw";
 
-  // Atomically update ranking and record ELO history
-  await db.transaction(async (tx) => {
-    await tx
-      .update(arenaRankings)
+  // Atomically update ranking + record ELO history (neon-http batch).
+  // LIMITATION: read-then-write without serializable isolation — if two battles
+  // for the same champion complete concurrently, one ELO update can be lost.
+  // Acceptable because the matchmaker runs battles serially per champion.
+  await db.batch([
+    db.update(arenaRankings)
       .set({
         wins: newWins,
         losses: newLosses,
@@ -63,9 +65,8 @@ export async function updateRankings(
         lastBattleAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(arenaRankings.skillId, championSkillId));
-
-    await tx.insert(arenaEloHistory).values({
+      .where(eq(arenaRankings.skillId, championSkillId)),
+    db.insert(arenaEloHistory).values({
       skillId: championSkillId,
       battleId,
       eloBefore,
@@ -73,8 +74,8 @@ export async function updateRankings(
       eloChange,
       opponentElo: challengerElo,
       outcome: eloOutcome,
-    });
-  });
+    }),
+  ]);
 }
 
 export function assignTitle(wins: number, losses: number, draws: number): string {

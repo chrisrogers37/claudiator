@@ -39,26 +39,29 @@ export async function POST(
   const hasPending = updatedLinks.some((l) => l.status === "pending");
   const hasApplied = updatedLinks.some((l) => l.status === "applied");
 
-  // Atomically: update link status and (if all resolved) update learning status
-  await db.transaction(async (tx) => {
-    await tx
-      .update(learningSkillLinks)
-      .set({ status: action, updatedAt: new Date() })
-      .where(
-        and(
-          eq(learningSkillLinks.learningId, id),
-          eq(learningSkillLinks.skillSlug, skillSlug)
-        )
-      );
+  // Atomically update link status and (if all resolved) learning status.
+  // Uses db.batch when multiple writes needed (neon-http doesn't support db.transaction).
+  const updateLink = db
+    .update(learningSkillLinks)
+    .set({ status: action, updatedAt: new Date() })
+    .where(
+      and(
+        eq(learningSkillLinks.learningId, id),
+        eq(learningSkillLinks.skillSlug, skillSlug)
+      )
+    );
 
-    if (!hasPending) {
-      const newStatus = hasApplied ? "applied" : "dismissed";
-      await tx
-        .update(learnings)
+  if (!hasPending) {
+    const newStatus = hasApplied ? "applied" : "dismissed";
+    await db.batch([
+      updateLink,
+      db.update(learnings)
         .set({ status: newStatus, updatedAt: new Date() })
-        .where(eq(learnings.id, id));
-    }
-  });
+        .where(eq(learnings.id, id)),
+    ]);
+  } else {
+    await updateLink;
+  }
 
   return NextResponse.json({ ok: true });
 }

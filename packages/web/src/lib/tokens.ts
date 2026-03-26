@@ -101,11 +101,10 @@ export async function rotateToken(
     ? new Date(Date.now() + remainingDays * 24 * 60 * 60 * 1000)
     : null;
 
-  // Atomically: insert new token, then revoke old one.
-  // If insert fails, old token remains valid.
-  const [newToken] = await db.transaction(async (tx) => {
-    const inserted = await tx
-      .insert(apiTokens)
+  // Batch: insert new token + revoke old one atomically.
+  // If insert fails, old token remains valid (neon-http wraps batch in BEGIN/COMMIT).
+  const results = await db.batch([
+    db.insert(apiTokens)
       .values({
         userId,
         tokenHash,
@@ -113,15 +112,13 @@ export async function rotateToken(
         name: existing.name,
         expiresAt,
       })
-      .returning();
-
-    await tx
-      .update(apiTokens)
+      .returning(),
+    db.update(apiTokens)
       .set({ revokedAt: new Date() })
-      .where(eq(apiTokens.id, tokenId));
+      .where(eq(apiTokens.id, tokenId)),
+  ]);
 
-    return inserted;
-  });
+  const newToken = results[0][0];
 
   return {
     id: newToken.id,
