@@ -6,7 +6,7 @@ import {
   intakeCandidates,
   skillVersions,
 } from "@claudiator/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { evolutionPrompt } from "./prompts";
 import { createBattle } from "./matchmaker";
 import { callLlm } from "./llm";
@@ -59,15 +59,17 @@ export async function generateEvolvedVersion(
   battleResultsSummary += `Champion Score: ${battle.championScore?.toFixed(1)}\n`;
   battleResultsSummary += `Challenger Score: ${battle.challengerScore?.toFixed(1)}\n\n`;
 
-  for (const round of rounds) {
-    const judgments = await db
-      .select()
-      .from(battleJudgments)
-      .where(eq(battleJudgments.roundId, round.id));
+  const roundIds = rounds.map((r) => r.id);
+  const judgments =
+    roundIds.length > 0
+      ? await db
+          .select()
+          .from(battleJudgments)
+          .where(inArray(battleJudgments.roundId, roundIds))
+      : [];
 
-    for (const j of judgments) {
-      battleResultsSummary += `Judge ${j.judgeIndex}: ${j.winnerId} — ${j.reasoning}\n`;
-    }
+  for (const j of judgments) {
+    battleResultsSummary += `Judge ${j.judgeIndex}: ${j.winnerId} — ${j.reasoning}\n`;
   }
 
   const prompt = evolutionPrompt(

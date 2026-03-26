@@ -40,10 +40,12 @@ export async function GET(request: Request) {
         .then((r) => r[0]?.count ?? 0),
 
       db
-        .selectDistinct({ userId: skillInvocations.userId })
+        .select({
+          count: sql<number>`count(distinct ${skillInvocations.userId})::int`,
+        })
         .from(skillInvocations)
         .where(gte(skillInvocations.invokedAt, thirtyDaysAgo))
-        .then((r) => r.length),
+        .then((r) => r[0]?.count ?? 0),
 
       db
         .select({

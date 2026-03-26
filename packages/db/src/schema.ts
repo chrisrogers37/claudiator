@@ -44,7 +44,7 @@ export const apiTokens = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     totalCalls: integer("total_calls").notNull().default(0),
     successfulCalls: integer("successful_calls").notNull().default(0),
-    failedCalls: integer("failed_calls").notNull().default(0),
+    failedCalls: integer("failed_calls").notNull().default(0), // never incremented: always 0
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -75,7 +75,7 @@ export const skills = pgTable(
       ],
     }).notNull(),
     isUserInvocable: boolean("is_user_invocable").notNull().default(true),
-    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }), // never written: always null
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -143,12 +143,12 @@ export const skillInvocations = pgTable(
       .notNull()
       .references(() => skills.id, { onDelete: "cascade" }),
     skillSlug: text("skill_slug").notNull(), // deprecated: use skillId
-    skillVersion: text("skill_version"),
+    skillVersion: text("skill_version"), // write-only: logged but never queried
     invokedAt: timestamp("invoked_at", { withTimezone: true }).notNull().defaultNow(),
-    sessionId: text("session_id").notNull(),
-    success: boolean("success"),
-    durationMs: integer("duration_ms"),
-    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+    sessionId: text("session_id").notNull(), // write-only: indexed but never queried
+    success: boolean("success"), // write-only: logged but never queried
+    durationMs: integer("duration_ms"), // write-only: logged but never queried
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}), // write-only: logged but never queried
   },
   (table) => [
     index("idx_invocations_skill_id").on(table.skillId),
@@ -207,16 +207,16 @@ export const skillFeedback = pgTable(
       .notNull()
       .references(() => skills.id, { onDelete: "cascade" }),
     skillSlug: text("skill_slug").notNull(), // deprecated: use skillId
-    skillVersion: text("skill_version"),
+    skillVersion: text("skill_version"), // write-only: logged but never queried
     rating: smallint("rating").notNull(), // 1-5
     comment: text("comment"),
-    sessionId: text("session_id").notNull(),
+    sessionId: text("session_id").notNull(), // write-only: indexed but never queried
     status: text("status", {
       enum: ["new", "acknowledged", "in_progress", "resolved"],
     })
       .notNull()
       .default("new"),
-    resolvedByVersionId: uuid("resolved_by_version_id").references(
+    resolvedByVersionId: uuid("resolved_by_version_id").references( // never written: feedback resolution tracking not yet implemented
       () => skillVersions.id,
       { onDelete: "set null" }
     ),
@@ -232,6 +232,7 @@ export const skillFeedback = pgTable(
 );
 
 // ─── User Installed Versions ────────────────────────────────────────────────
+// NOTE: No write path exists — admin/versions/nudge reads this but nothing populates it.
 
 export const userInstalledVersions = pgTable(
   "user_installed_versions",
@@ -407,7 +408,7 @@ export const intakeCandidates = pgTable(
     })
       .notNull()
       .default("new"),
-    submittedBy: uuid("submitted_by").references(() => users.id, { onDelete: "set null" }),
+    submittedBy: uuid("submitted_by").references(() => users.id, { onDelete: "set null" }), // never written: intake POST doesn't set this
     metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -557,7 +558,7 @@ export const arenaRankings = pgTable(
       .notNull()
       .references(() => skills.id, { onDelete: "cascade" })
       .unique(),
-    category: text("category"),
+    category: text("category"), // never written: always null
     wins: integer("wins").notNull().default(0),
     losses: integer("losses").notNull().default(0),
     draws: integer("draws").notNull().default(0),
@@ -595,14 +596,14 @@ export const arenaLlmCalls = pgTable(
     model: text("model").notNull(),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
-    totalTokens: integer("total_tokens"),
+    totalTokens: integer("total_tokens"), // write-only: redundant (input + output stored separately)
     latencyMs: integer("latency_ms"),
     costCents: real("cost_cents"),
     status: text("status", {
       enum: ["success", "error", "parse_failure", "rate_limited"],
-    }).notNull(),
-    errorMessage: text("error_message"),
-    rawResponse: text("raw_response"),
+    }).notNull(), // write-only: logged but never queried
+    errorMessage: text("error_message"), // write-only: stored but never queried
+    rawResponse: text("raw_response"), // write-only: stored but never queried
     parentEntityId: uuid("parent_entity_id"),
     parentEntityType: text("parent_entity_type", {
       enum: ["battle_round", "battle_scenario", "battle_judgment", "intake_candidate"],
@@ -618,6 +619,7 @@ export const arenaLlmCalls = pgTable(
 );
 
 // ─── Arena ELO History ───────────────────────────────────────────────────────
+// NOTE: Write-only table — records ELO history but no API or UI reads this data yet.
 
 export const arenaEloHistory = pgTable(
   "arena_elo_history",
@@ -645,6 +647,7 @@ export const arenaEloHistory = pgTable(
 );
 
 // ─── Arena Pipeline Events ───────────────────────────────────────────────────
+// NOTE: Internal observability only — never exposed to any API or UI.
 
 export const arenaPipelineEvents = pgTable(
   "arena_pipeline_events",

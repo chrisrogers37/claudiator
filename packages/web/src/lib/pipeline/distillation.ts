@@ -111,23 +111,29 @@ export async function triggerDistillation(
     }
   }
 
-  // Store proposed skill changes
-  for (const skillChange of affectedSkills) {
-    const skillId = slugToId.get(skillChange.skill_slug);
-    if (!skillId) {
-      console.warn(
-        `[pipeline] Skill slug "${skillChange.skill_slug}" not found, skipping link for learning "${result.title}"`
-      );
-      continue;
-    }
+  // Store proposed skill changes (bulk insert with skillId)
+  const linksToInsert = affectedSkills
+    .filter((skillChange) => {
+      const skillId = slugToId.get(skillChange.skill_slug);
+      if (!skillId) {
+        console.warn(
+          `[pipeline] Skill slug "${skillChange.skill_slug}" not found, skipping link for learning "${result.title}"`
+        );
+        return false;
+      }
+      return true;
+    })
+    .map((skillChange) => ({
+      learningId: learning.id,
+      skillId: slugToId.get(skillChange.skill_slug)!,
+      skillSlug: skillChange.skill_slug,
+      proposedChange: skillChange.proposed_change,
+    }));
+
+  if (linksToInsert.length > 0) {
     await db
       .insert(learningSkillLinks)
-      .values({
-        learningId: learning.id,
-        skillId,
-        skillSlug: skillChange.skill_slug,
-        proposedChange: skillChange.proposed_change,
-      })
+      .values(linksToInsert)
       .onConflictDoNothing();
   }
 
