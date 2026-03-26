@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "0001",
+      "when": 1738368000000,
+      "tag": "0001_phase05_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "0002",
+      "when": 1739577600000,
+      "tag": "0002_phase06_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "0003",
+      "when": 1741305600000,
+      "tag": "0003_arena_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "0004",
+      "when": 1741996800000,
+      "tag": "0004_arena_observability",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "0005",
+      "when": 1743033600000,
+      "tag": "0005_learnings_schema",
+      "breakpoints": true
+    }
+  ]
+}
