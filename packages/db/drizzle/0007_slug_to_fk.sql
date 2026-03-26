@@ -19,6 +19,7 @@ UPDATE learning_skill_links SET skill_id = s.id FROM skills s WHERE learning_ski
 ALTER TABLE learning_skill_links ALTER COLUMN skill_id SET NOT NULL;
 CREATE INDEX idx_learning_skill_links_skill_id ON learning_skill_links (skill_id);
 -- Replace slug-based unique with skill_id-based unique
+DROP INDEX IF EXISTS learning_skill_links_unique;
 CREATE UNIQUE INDEX learning_skill_links_unique_v2 ON learning_skill_links (learning_id, skill_id);
 
 -- 4. activity_events: add skill_id FK (nullable — not all events have a skill)

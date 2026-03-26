@@ -37,7 +37,7 @@ export async function logInvocation(
       `[claudiator] skill not found for slug "${args.skill_slug}", skipping invocation log`
     );
     return {
-      content: [{ type: "text" as const, text: "Invocation logged." }],
+      content: [{ type: "text" as const, text: "Invocation skipped: unknown skill slug." }],
     };
   }
 
