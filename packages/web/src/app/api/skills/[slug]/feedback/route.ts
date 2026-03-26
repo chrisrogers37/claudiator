@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createDb } from "@claudiator/db/client";
-import { skillFeedback } from "@claudiator/db/schema";
+import { skillFeedback, skills } from "@claudiator/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 
@@ -17,10 +17,20 @@ export async function GET(
 
   const { slug } = await params;
 
+  const [skill] = await db
+    .select({ id: skills.id })
+    .from(skills)
+    .where(eq(skills.slug, slug))
+    .limit(1);
+
+  if (!skill) {
+    return NextResponse.json({ error: "Skill not found" }, { status: 404 });
+  }
+
   const entries = await db
     .select()
     .from(skillFeedback)
-    .where(eq(skillFeedback.skillSlug, slug))
+    .where(eq(skillFeedback.skillId, skill.id))
     .orderBy(desc(skillFeedback.createdAt));
 
   return NextResponse.json(entries);

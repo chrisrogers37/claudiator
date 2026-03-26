@@ -36,7 +36,7 @@ export async function GET(
       skillName: skills.name,
     })
     .from(learningSkillLinks)
-    .innerJoin(skills, eq(learningSkillLinks.skillSlug, skills.slug))
+    .innerJoin(skills, eq(learningSkillLinks.skillId, skills.id))
     .where(eq(learningSkillLinks.learningId, id));
 
   return NextResponse.json({ ...learning, skillLinks: links });

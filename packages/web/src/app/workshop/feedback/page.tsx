@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createDb } from "@claudiator/db/client";
 import { skills, skillFeedback } from "@claudiator/db/schema";
-import { sql, desc, asc } from "drizzle-orm";
+import { sql, desc, asc, eq } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ export default async function FeedbackOverviewPage({
       latestFeedback: sql<Date>`MAX(${skillFeedback.createdAt})`,
     })
     .from(skills)
-    .innerJoin(skillFeedback, sql`${skills.slug} = ${skillFeedback.skillSlug}`)
+    .innerJoin(skillFeedback, eq(skillFeedback.skillId, skills.id))
     .groupBy(skills.slug, skills.name, skills.category)
     .orderBy(
       sortOrder === "count"

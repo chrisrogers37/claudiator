@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createDb } from "@claudiator/db/client";
-import { learningSkillLinks, learnings } from "@claudiator/db/schema";
+import { learningSkillLinks, learnings, skills } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 
@@ -25,13 +25,26 @@ export async function POST(
     );
   }
 
+  const [skill] = await db
+    .select({ id: skills.id })
+    .from(skills)
+    .where(eq(skills.slug, skillSlug))
+    .limit(1);
+
+  if (!skill) {
+    return NextResponse.json(
+      { error: "Skill not found" },
+      { status: 404 }
+    );
+  }
+
   await db
     .update(learningSkillLinks)
     .set({ status: action, updatedAt: new Date() })
     .where(
       and(
         eq(learningSkillLinks.learningId, id),
-        eq(learningSkillLinks.skillSlug, skillSlug)
+        eq(learningSkillLinks.skillId, skill.id)
       )
     );
 

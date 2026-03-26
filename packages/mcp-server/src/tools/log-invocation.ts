@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skillInvocations } from "@claudiator/db/schema";
+import { skillInvocations, skills } from "@claudiator/db/schema";
+import { eq } from "drizzle-orm";
 
 export const logInvocationSchema = z.object({
   skill_slug: z
@@ -25,10 +26,26 @@ export async function logInvocation(
   user: { id: string },
   args: z.infer<typeof logInvocationSchema>
 ): Promise<{ content: { type: "text"; text: string }[] }> {
+  // Resolve skill slug to ID (awaited so FK is available)
+  const [skill] = await db
+    .select({ id: skills.id })
+    .from(skills)
+    .where(eq(skills.slug, args.skill_slug));
+
+  if (!skill) {
+    console.warn(
+      `[claudiator] skill not found for slug "${args.skill_slug}", skipping invocation log`
+    );
+    return {
+      content: [{ type: "text" as const, text: "Invocation logged." }],
+    };
+  }
+
   // Fire-and-forget: insert without awaiting so telemetry never blocks the session
   db.insert(skillInvocations)
     .values({
       userId: user.id,
+      skillId: skill.id,
       skillSlug: args.skill_slug,
       sessionId: args.session_id,
       success: args.success ?? null,

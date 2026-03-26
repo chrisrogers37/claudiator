@@ -75,6 +75,7 @@ export async function POST(request: Request) {
       userId: user.userId,
       eventType: "version_nudge",
       skillSlug,
+      skillId: skill.id,
       details: {
         nudgedBy: adminUserId,
         latestVersion: latest.version,

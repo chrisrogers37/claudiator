@@ -3,9 +3,10 @@ import type { Db } from "@claudiator/db/client";
 import {
   learnings,
   learningSkillLinks,
+  skills,
   sourceSnapshots,
 } from "@claudiator/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt";
 
 interface DistillationInput {
@@ -96,12 +97,34 @@ export async function triggerDistillation(
     })
     .returning({ id: learnings.id });
 
+  // Resolve skill slugs to IDs
+  const affectedSkills = result.affected_skills || [];
+  const affectedSlugs = affectedSkills.map((s) => s.skill_slug);
+  const slugToId = new Map<string, string>();
+  if (affectedSlugs.length > 0) {
+    const skillRows = await db
+      .select({ id: skills.id, slug: skills.slug })
+      .from(skills)
+      .where(inArray(skills.slug, affectedSlugs));
+    for (const row of skillRows) {
+      slugToId.set(row.slug, row.id);
+    }
+  }
+
   // Store proposed skill changes
-  for (const skillChange of result.affected_skills || []) {
+  for (const skillChange of affectedSkills) {
+    const skillId = slugToId.get(skillChange.skill_slug);
+    if (!skillId) {
+      console.warn(
+        `[pipeline] Skill slug "${skillChange.skill_slug}" not found, skipping link for learning "${result.title}"`
+      );
+      continue;
+    }
     await db
       .insert(learningSkillLinks)
       .values({
         learningId: learning.id,
+        skillId,
         skillSlug: skillChange.skill_slug,
         proposedChange: skillChange.proposed_change,
       })

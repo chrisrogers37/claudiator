@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { validateToken } from "@claudiator/db/auth";
 import { createDb } from "@claudiator/db/client";
-import { skillInvocations, skillFeedback } from "@claudiator/db/schema";
+import { skillInvocations, skillFeedback, skills } from "@claudiator/db/schema";
 import { eq, count, avg, desc } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -21,18 +21,28 @@ export async function GET(
 
   const { skillSlug } = await params;
 
+  const [skill] = await db
+    .select({ id: skills.id })
+    .from(skills)
+    .where(eq(skills.slug, skillSlug))
+    .limit(1);
+
+  if (!skill) {
+    return NextResponse.json({ error: "Skill not found" }, { status: 404 });
+  }
+
   const [totalInvocations, uniqueUsers, recentFeedback, avgRating] =
     await Promise.all([
       db
         .select({ count: count() })
         .from(skillInvocations)
-        .where(eq(skillInvocations.skillSlug, skillSlug))
+        .where(eq(skillInvocations.skillId, skill.id))
         .then((r) => r[0]?.count ?? 0),
 
       db
         .selectDistinct({ userId: skillInvocations.userId })
         .from(skillInvocations)
-        .where(eq(skillInvocations.skillSlug, skillSlug))
+        .where(eq(skillInvocations.skillId, skill.id))
         .then((r) => r.length),
 
       db
@@ -42,7 +52,7 @@ export async function GET(
           createdAt: skillFeedback.createdAt,
         })
         .from(skillFeedback)
-        .where(eq(skillFeedback.skillSlug, skillSlug))
+        .where(eq(skillFeedback.skillId, skill.id))
         .orderBy(desc(skillFeedback.createdAt))
         .limit(10),
 
@@ -52,7 +62,7 @@ export async function GET(
           totalRatings: count(),
         })
         .from(skillFeedback)
-        .where(eq(skillFeedback.skillSlug, skillSlug))
+        .where(eq(skillFeedback.skillId, skill.id))
         .then((r) => r[0]),
     ]);
 

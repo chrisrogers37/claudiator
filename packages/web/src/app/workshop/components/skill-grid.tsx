@@ -50,17 +50,17 @@ export async function SkillGrid({ category, sort, search }: SkillGridProps) {
       totalInvocations: sql<number>`COALESCE((
         SELECT COUNT(*)
         FROM ${skillInvocations}
-        WHERE ${skillInvocations.skillSlug} = ${skills.slug}
+        WHERE ${skillInvocations.skillId} = ${skills.id}
       ), 0)::int`,
       avgRating: sql<number | null>`(
         SELECT AVG(${skillFeedback.rating})::numeric(3,1)
         FROM ${skillFeedback}
-        WHERE ${skillFeedback.skillSlug} = ${skills.slug}
+        WHERE ${skillFeedback.skillId} = ${skills.id}
       )`,
       feedbackCount: sql<number>`COALESCE((
         SELECT COUNT(*)
         FROM ${skillFeedback}
-        WHERE ${skillFeedback.skillSlug} = ${skills.slug}
+        WHERE ${skillFeedback.skillId} = ${skills.id}
       ), 0)::int`,
     })
     .from(skills)
@@ -68,11 +68,11 @@ export async function SkillGrid({ category, sort, search }: SkillGridProps) {
     .orderBy(
       sort === "usage"
         ? desc(
-            sql`COALESCE((SELECT COUNT(*) FROM ${skillInvocations} WHERE ${skillInvocations.skillSlug} = ${skills.slug}), 0)`
+            sql`COALESCE((SELECT COUNT(*) FROM ${skillInvocations} WHERE ${skillInvocations.skillId} = ${skills.id}), 0)`
           )
         : sort === "rating"
           ? desc(
-              sql`(SELECT AVG(${skillFeedback.rating}) FROM ${skillFeedback} WHERE ${skillFeedback.skillSlug} = ${skills.slug})`
+              sql`(SELECT AVG(${skillFeedback.rating}) FROM ${skillFeedback} WHERE ${skillFeedback.skillId} = ${skills.id})`
             )
           : sort === "updated"
             ? desc(skills.updatedAt)

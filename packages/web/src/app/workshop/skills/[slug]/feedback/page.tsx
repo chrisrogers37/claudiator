@@ -31,7 +31,7 @@ export default async function SkillFeedbackPage({
       count: sql<number>`COUNT(*)::int`,
     })
     .from(skillFeedback)
-    .where(eq(skillFeedback.skillSlug, slug))
+    .where(eq(skillFeedback.skillId, skill.id))
     .groupBy(skillFeedback.rating)
     .orderBy(asc(skillFeedback.rating));
 
@@ -43,7 +43,7 @@ export default async function SkillFeedbackPage({
   const entries = await db
     .select()
     .from(skillFeedback)
-    .where(eq(skillFeedback.skillSlug, slug))
+    .where(eq(skillFeedback.skillId, skill.id))
     .orderBy(sortColumn);
 
   return (

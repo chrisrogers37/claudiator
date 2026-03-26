@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skillFeedback } from "@claudiator/db/schema";
+import { skillFeedback, skills } from "@claudiator/db/schema";
+import { eq, inArray } from "drizzle-orm";
 
 export const sessionFeedbackSchema = z.object({
   session_id: z
@@ -23,8 +24,27 @@ export async function sessionFeedback(
   user: { id: string },
   args: z.infer<typeof sessionFeedbackSchema>
 ): Promise<{ content: { type: "text"; text: string }[] }> {
+  // Resolve all skill slugs to IDs in a single query
+  const slugs = args.ratings.map((r) => r.skill_slug);
+  const skillRows = await db
+    .select({ id: skills.id, slug: skills.slug })
+    .from(skills)
+    .where(inArray(skills.slug, slugs));
+  const slugToId = new Map(skillRows.map((s) => [s.slug, s.id]));
+
+  const missingSkills = slugs.filter((s) => !slugToId.has(s));
+  if (missingSkills.length > 0) {
+    return {
+      content: [{
+        type: "text" as const,
+        text: `Unknown skill slug(s): ${missingSkills.join(", ")}`,
+      }],
+    };
+  }
+
   const records = args.ratings.map((r) => ({
     userId: user.id,
+    skillId: slugToId.get(r.skill_slug)!,
     skillSlug: r.skill_slug,
     rating: r.rating,
     comment: r.comment
