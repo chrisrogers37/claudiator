@@ -7,7 +7,7 @@ import {
   skills,
   intakeCandidates,
 } from "@claudiator/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, asc } from "drizzle-orm";
 
 export async function getBattleDetail(db: Db, battleId: string) {
   // 1. Load battle with champion skill + challenger joins
@@ -46,13 +46,15 @@ export async function getBattleDetail(db: Db, battleId: string) {
   const scenarios = await db
     .select()
     .from(battleScenarios)
-    .where(eq(battleScenarios.battleId, battleId));
+    .where(eq(battleScenarios.battleId, battleId))
+    .orderBy(asc(battleScenarios.scenarioIndex));
 
   // 3. Load all rounds
   const rounds = await db
     .select()
     .from(battleRounds)
-    .where(eq(battleRounds.battleId, battleId));
+    .where(eq(battleRounds.battleId, battleId))
+    .orderBy(asc(battleRounds.roundIndex));
 
   // 4. Load ALL judgments in one query using inArray
   const roundIds = rounds.map((r) => r.id);
@@ -61,7 +63,8 @@ export async function getBattleDetail(db: Db, battleId: string) {
     judgments = await db
       .select()
       .from(battleJudgments)
-      .where(inArray(battleJudgments.roundId, roundIds));
+      .where(inArray(battleJudgments.roundId, roundIds))
+      .orderBy(asc(battleJudgments.judgeIndex));
   }
 
   // 5. Group judgments by roundId in JavaScript

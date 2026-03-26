@@ -55,6 +55,10 @@ export async function generateScenarios(
     throw new Error("Failed to generate scenarios");
   }
 
+  if (scenarios.length === 0) {
+    throw new Error("LLM returned zero scenarios");
+  }
+
   const inserted = await db
     .insert(battleScenarios)
     .values(
