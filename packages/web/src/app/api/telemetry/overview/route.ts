@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { validateToken } from "@claudiator/db/auth";
 import { createDb } from "@claudiator/db/client";
-import { skillInvocations, skillFeedback } from "@claudiator/db/schema";
-import { count, desc, gte, avg, sql } from "drizzle-orm";
+import { skillInvocations, skillFeedback, skills } from "@claudiator/db/schema";
+import { count, desc, gte, avg, sql, eq } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
 
@@ -23,12 +23,13 @@ export async function GET(request: Request) {
     await Promise.all([
       db
         .select({
-          skillSlug: skillInvocations.skillSlug,
+          skillSlug: skills.slug,
           invocationCount: count(),
         })
         .from(skillInvocations)
+        .innerJoin(skills, eq(skillInvocations.skillId, skills.id))
         .where(gte(skillInvocations.invokedAt, thirtyDaysAgo))
-        .groupBy(skillInvocations.skillSlug)
+        .groupBy(skills.slug)
         .orderBy(desc(count()))
         .limit(10),
 
@@ -46,12 +47,13 @@ export async function GET(request: Request) {
 
       db
         .select({
-          skillSlug: skillFeedback.skillSlug,
+          skillSlug: skills.slug,
           avgRating: avg(skillFeedback.rating),
           ratingCount: count(),
         })
         .from(skillFeedback)
-        .groupBy(skillFeedback.skillSlug)
+        .innerJoin(skills, eq(skillFeedback.skillId, skills.id))
+        .groupBy(skills.slug)
         .having(sql`count(*) >= 3`)
         .orderBy(avg(skillFeedback.rating))
         .limit(5),

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createDb } from "@claudiator/db/client";
-import { skillInvocations, skillFeedback } from "@claudiator/db/schema";
+import { skillInvocations, skillFeedback, skills } from "@claudiator/db/schema";
 import { sql, eq } from "drizzle-orm";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,13 +19,23 @@ interface SkillSidebarProps {
 }
 
 export async function SkillSidebar({ slug, skill }: SkillSidebarProps) {
+  const [skillRow] = await db
+    .select({ id: skills.id })
+    .from(skills)
+    .where(eq(skills.slug, slug))
+    .limit(1);
+
+  if (!skillRow) {
+    return null;
+  }
+
   const [stats] = await db
     .select({
       totalInvocations: sql<number>`COALESCE(COUNT(${skillInvocations.id}), 0)::int`,
       weeklyInvocations: sql<number>`COALESCE(SUM(CASE WHEN ${skillInvocations.invokedAt} > NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)::int`,
     })
     .from(skillInvocations)
-    .where(eq(skillInvocations.skillSlug, slug));
+    .where(eq(skillInvocations.skillId, skillRow.id));
 
   const [feedbackStats] = await db
     .select({
@@ -33,7 +43,7 @@ export async function SkillSidebar({ slug, skill }: SkillSidebarProps) {
       feedbackCount: sql<number>`COUNT(${skillFeedback.id})::int`,
     })
     .from(skillFeedback)
-    .where(eq(skillFeedback.skillSlug, slug));
+    .where(eq(skillFeedback.skillId, skillRow.id));
 
   return (
     <div className="space-y-4">

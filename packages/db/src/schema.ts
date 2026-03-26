@@ -139,7 +139,10 @@ export const skillInvocations = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    skillSlug: text("skill_slug").notNull(),
+    skillId: uuid("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+    skillSlug: text("skill_slug").notNull(), // deprecated: use skillId
     skillVersion: text("skill_version"),
     invokedAt: timestamp("invoked_at", { withTimezone: true }).notNull().defaultNow(),
     sessionId: text("session_id").notNull(),
@@ -148,6 +151,7 @@ export const skillInvocations = pgTable(
     metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   },
   (table) => [
+    index("idx_invocations_skill_id").on(table.skillId),
     index("idx_invocations_skill_slug").on(table.skillSlug),
     index("idx_invocations_user_id").on(table.userId),
     index("idx_invocations_session_id").on(table.sessionId),
@@ -178,13 +182,15 @@ export const activityEvents = pgTable(
         "feedback_status_change",
       ],
     }).notNull(),
-    skillSlug: text("skill_slug"),
+    skillId: uuid("skill_id").references(() => skills.id, { onDelete: "set null" }),
+    skillSlug: text("skill_slug"), // deprecated: use skillId
     details: jsonb("details").$type<Record<string, unknown>>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index("idx_activity_events_user_created").on(table.userId, table.createdAt),
     index("idx_activity_events_event_type").on(table.eventType),
+    index("idx_activity_events_skill_id").on(table.skillId),
   ]
 );
 
@@ -197,7 +203,10 @@ export const skillFeedback = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    skillSlug: text("skill_slug").notNull(),
+    skillId: uuid("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+    skillSlug: text("skill_slug").notNull(), // deprecated: use skillId
     skillVersion: text("skill_version"),
     rating: smallint("rating").notNull(), // 1-5
     comment: text("comment"),
@@ -214,6 +223,7 @@ export const skillFeedback = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index("idx_feedback_skill_id").on(table.skillId),
     index("idx_feedback_skill_slug").on(table.skillSlug),
     index("idx_feedback_user_id").on(table.userId),
     index("idx_feedback_session_id").on(table.sessionId),
@@ -349,7 +359,10 @@ export const learningSkillLinks = pgTable(
     learningId: uuid("learning_id")
       .notNull()
       .references(() => learnings.id, { onDelete: "cascade" }),
-    skillSlug: text("skill_slug").notNull(),
+    skillId: uuid("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+    skillSlug: text("skill_slug").notNull(), // deprecated: use skillId
     proposedChange: text("proposed_change"),
     status: text("status", {
       enum: ["pending", "applied", "rejected"],
@@ -360,8 +373,9 @@ export const learningSkillLinks = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("learning_skill_links_unique").on(table.learningId, table.skillSlug),
+    uniqueIndex("learning_skill_links_unique_v2").on(table.learningId, table.skillId),
     index("idx_learning_skill_links_learning").on(table.learningId),
+    index("idx_learning_skill_links_skill_id").on(table.skillId),
     index("idx_learning_skill_links_skill").on(table.skillSlug),
     index("idx_learning_skill_links_status").on(table.status),
   ]

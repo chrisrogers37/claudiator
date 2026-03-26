@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createDb } from "@claudiator/db/client";
-import { learningSkillLinks, learnings } from "@claudiator/db/schema";
+import { learningSkillLinks, learnings, skills } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 
@@ -25,29 +25,41 @@ export async function POST(
     );
   }
 
-  // Read all link state before the transaction (neon-http batch transactions
-  // don't support interactive reads, so we compute target state in JS first)
+  // Resolve slug to skillId
+  const [skill] = await db
+    .select({ id: skills.id })
+    .from(skills)
+    .where(eq(skills.slug, skillSlug))
+    .limit(1);
+
+  if (!skill) {
+    return NextResponse.json(
+      { error: "Skill not found" },
+      { status: 404 }
+    );
+  }
+
+  // Read all link state before batching (neon-http batch doesn't support
+  // interactive reads, so we compute target state in JS first)
   const allLinks = await db
-    .select({ skillSlug: learningSkillLinks.skillSlug, status: learningSkillLinks.status })
+    .select({ skillId: learningSkillLinks.skillId, status: learningSkillLinks.status })
     .from(learningSkillLinks)
     .where(eq(learningSkillLinks.learningId, id));
 
-  // Compute what the state will be after the update
   const updatedLinks = allLinks.map((link) =>
-    link.skillSlug === skillSlug ? { ...link, status: action } : link
+    link.skillId === skill.id ? { ...link, status: action } : link
   );
   const hasPending = updatedLinks.some((l) => l.status === "pending");
   const hasApplied = updatedLinks.some((l) => l.status === "applied");
 
   // Atomically update link status and (if all resolved) learning status.
-  // Uses db.batch when multiple writes needed (neon-http doesn't support db.transaction).
   const updateLink = db
     .update(learningSkillLinks)
     .set({ status: action, updatedAt: new Date() })
     .where(
       and(
         eq(learningSkillLinks.learningId, id),
-        eq(learningSkillLinks.skillSlug, skillSlug)
+        eq(learningSkillLinks.skillId, skill.id)
       )
     );
 

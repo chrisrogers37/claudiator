@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createDb } from "@claudiator/db/client";
-import { skillFeedback, activityEvents } from "@claudiator/db/schema";
+import { skillFeedback, activityEvents, skills } from "@claudiator/db/schema";
 import { eq } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -38,6 +38,7 @@ export async function POST(
     .select({
       id: skillFeedback.id,
       skillSlug: skillFeedback.skillSlug,
+      skillId: skillFeedback.skillId,
       status: skillFeedback.status,
     })
     .from(skillFeedback)
@@ -60,6 +61,7 @@ export async function POST(
     userId,
     eventType: "feedback_status_change",
     skillSlug: feedback.skillSlug,
+    skillId: feedback.skillId,
     details: {
       feedbackId: id,
       fromStatus: feedback.status,

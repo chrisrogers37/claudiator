@@ -64,7 +64,7 @@ export default async function AdminFeedbackPage({
       username: users.githubUsername,
     })
     .from(skillFeedback)
-    .innerJoin(skills, sql`${skills.slug} = ${skillFeedback.skillSlug}`)
+    .innerJoin(skills, eq(skillFeedback.skillId, skills.id))
     .innerJoin(users, eq(users.id, skillFeedback.userId))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(

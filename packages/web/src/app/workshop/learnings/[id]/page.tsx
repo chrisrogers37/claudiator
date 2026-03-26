@@ -37,7 +37,7 @@ export default async function LearningDetailPage({
       skillName: skills.name,
     })
     .from(learningSkillLinks)
-    .innerJoin(skills, eq(learningSkillLinks.skillSlug, skills.slug))
+    .innerJoin(skills, eq(learningSkillLinks.skillId, skills.id))
     .where(eq(learningSkillLinks.learningId, id));
 
   const tags = learning.relevanceTags ?? [];
