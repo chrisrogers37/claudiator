@@ -1,18 +1,10 @@
 import { createDb } from "@claudiator/db/client";
-import {
-  battles,
-  intakeCandidates,
-  skills,
-  battleScenarios,
-  battleRounds,
-  battleJudgments,
-} from "@claudiator/db/schema";
-import { eq, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BattleStatusBadge } from "../components/battle-status-badge";
 import { BattleExecuteButton } from "../components/battle-execute-button";
 import { JudgeCard } from "../components/judge-card";
+import { getBattleDetail } from "@/lib/arena/battle-queries";
 
 export default async function BattleDetailPage({
   params,
@@ -22,33 +14,10 @@ export default async function BattleDetailPage({
   const { battleId } = await params;
   const db = createDb(process.env.DATABASE_URL!);
 
-  // Fetch battle with related data
-  const battleRows = await db
-    .select({
-      id: battles.id,
-      status: battles.status,
-      verdict: battles.verdict,
-      championScore: battles.championScore,
-      challengerScore: battles.challengerScore,
-      config: battles.config,
-      evolutionBattleId: battles.evolutionBattleId,
-      startedAt: battles.startedAt,
-      completedAt: battles.completedAt,
-      createdAt: battles.createdAt,
-      challengerPurpose: intakeCandidates.extractedPurpose,
-      challengerRawContent: intakeCandidates.rawContent,
-      challengerSourceType: intakeCandidates.sourceType,
-      championName: skills.name,
-      championSlug: skills.slug,
-    })
-    .from(battles)
-    .innerJoin(intakeCandidates, eq(battles.challengerId, intakeCandidates.id))
-    .innerJoin(skills, eq(battles.championSkillId, skills.id))
-    .where(eq(battles.id, battleId))
-    .limit(1);
+  const result = await getBattleDetail(db, battleId);
+  if (!result) return notFound();
 
-  if (battleRows.length === 0) return notFound();
-  const battle = battleRows[0];
+  const battle = result;
 
   // Extract short name from YAML frontmatter
   const challengerNameMatch = battle.challengerRawContent.match(
@@ -56,59 +25,32 @@ export default async function BattleDetailPage({
   );
   const challengerName =
     challengerNameMatch?.[1] ||
-    battle.challengerPurpose?.slice(0, 40) ||
+    battle.challengerExtractedPurpose?.slice(0, 40) ||
     battle.challengerSourceType;
 
-  // Fetch scenarios
-  const scenarios = await db
-    .select()
-    .from(battleScenarios)
-    .where(eq(battleScenarios.battleId, battleId))
-    .orderBy(asc(battleScenarios.scenarioIndex));
-
-  // Fetch rounds
-  const rounds = await db
-    .select()
-    .from(battleRounds)
-    .where(eq(battleRounds.battleId, battleId))
-    .orderBy(asc(battleRounds.roundIndex));
-
-  // Fetch judgments for all rounds
-  const roundIds = rounds.map((r) => r.id);
-  let judgments: (typeof battleJudgments.$inferSelect)[] = [];
-  if (roundIds.length > 0) {
-    const allJudgments = [];
-    for (const rid of roundIds) {
-      const j = await db
-        .select()
-        .from(battleJudgments)
-        .where(eq(battleJudgments.roundId, rid))
-        .orderBy(asc(battleJudgments.judgeIndex));
-      allJudgments.push(...j);
+  // Build maps from the nested data
+  const scenarios = battle.scenarios;
+  const roundsByScenario = new Map<string, typeof scenarios[number]["rounds"]>();
+  const allJudgments: typeof scenarios[number]["rounds"][number]["judgments"] = [];
+  for (const s of scenarios) {
+    roundsByScenario.set(s.id, s.rounds);
+    for (const r of s.rounds) {
+      allJudgments.push(...r.judgments);
     }
-    judgments = allJudgments;
   }
 
-  // Group rounds and judgments by scenario
-  const roundsByScenario = new Map<string, (typeof rounds)>();
-  for (const r of rounds) {
-    const arr = roundsByScenario.get(r.scenarioId) || [];
-    arr.push(r);
-    roundsByScenario.set(r.scenarioId, arr);
-  }
-
-  const judgmentsByRound = new Map<string, typeof judgments>();
-  for (const j of judgments) {
-    const arr = judgmentsByRound.get(j.roundId) || [];
-    arr.push(j);
-    judgmentsByRound.set(j.roundId, arr);
+  const judgmentsByRound = new Map<string, typeof allJudgments>();
+  for (const s of scenarios) {
+    for (const r of s.rounds) {
+      judgmentsByRound.set(r.id, r.judgments);
+    }
   }
 
   // Count votes
   let champVotes = 0,
     challVotes = 0,
     drawVotes = 0;
-  for (const j of judgments) {
+  for (const j of allJudgments) {
     if (j.winnerId === "champion") champVotes++;
     else if (j.winnerId === "challenger") challVotes++;
     else drawVotes++;
@@ -159,9 +101,9 @@ export default async function BattleDetailPage({
               <p className="font-mono text-lg text-orange-400 truncate pl-3">
                 {challengerName}
               </p>
-              {battle.challengerPurpose && challengerNameMatch && (
+              {battle.challengerExtractedPurpose && challengerNameMatch && (
                 <p className="font-mono text-xs text-gray-500 mt-1 pl-3 truncate">
-                  {battle.challengerPurpose}
+                  {battle.challengerExtractedPurpose}
                 </p>
               )}
             </div>
@@ -182,10 +124,10 @@ export default async function BattleDetailPage({
                 <div className="w-1 h-8 rounded-full bg-yellow-500" />
               </div>
               <Link
-                href={`/workshop/skills/${battle.championSlug}`}
+                href={`/workshop/skills/${battle.championSkillSlug}`}
                 className="font-mono text-lg text-yellow-500 hover:underline truncate block pr-3"
               >
-                {battle.championName}
+                {battle.championSkillName}
               </Link>
             </div>
           </div>

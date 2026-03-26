@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { validateToken } from "@claudiator/db/auth";
 import { createDb } from "@claudiator/db/client";
 import { skillInvocations, skillFeedback } from "@claudiator/db/schema";
-import { eq, count, avg, desc } from "drizzle-orm";
+import { eq, count, avg, desc, sql } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
 
@@ -30,10 +30,12 @@ export async function GET(
         .then((r) => r[0]?.count ?? 0),
 
       db
-        .selectDistinct({ userId: skillInvocations.userId })
+        .select({
+          count: sql<number>`count(distinct ${skillInvocations.userId})::int`,
+        })
         .from(skillInvocations)
         .where(eq(skillInvocations.skillSlug, skillSlug))
-        .then((r) => r.length),
+        .then((r) => r[0]?.count ?? 0),
 
       db
         .select({

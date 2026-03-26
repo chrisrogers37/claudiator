@@ -97,14 +97,17 @@ export async function triggerDistillation(
     .returning({ id: learnings.id });
 
   // Store proposed skill changes
-  for (const skillChange of result.affected_skills || []) {
+  const affectedSkills = result.affected_skills || [];
+  if (affectedSkills.length > 0) {
     await db
       .insert(learningSkillLinks)
-      .values({
-        learningId: learning.id,
-        skillSlug: skillChange.skill_slug,
-        proposedChange: skillChange.proposed_change,
-      })
+      .values(
+        affectedSkills.map((skillChange) => ({
+          learningId: learning.id,
+          skillSlug: skillChange.skill_slug,
+          proposedChange: skillChange.proposed_change,
+        }))
+      )
       .onConflictDoNothing();
   }
 

@@ -55,22 +55,20 @@ export async function generateScenarios(
     throw new Error("Failed to generate scenarios");
   }
 
-  const scenarioIds: string[] = [];
-  for (let i = 0; i < scenarios.length; i++) {
-    const s = scenarios[i];
-    const [inserted] = await db
-      .insert(battleScenarios)
-      .values({
+  const inserted = await db
+    .insert(battleScenarios)
+    .values(
+      scenarios.map((s, i) => ({
         battleId,
         scenarioIndex: i,
         description: s.description,
         projectContext: s.projectContext,
         userPrompt: s.userPrompt,
         difficulty: s.difficulty,
-      })
-      .returning({ id: battleScenarios.id });
-    scenarioIds.push(inserted.id);
-  }
+      }))
+    )
+    .returning({ id: battleScenarios.id });
+  const scenarioIds = inserted.map((r) => r.id);
 
   console.log(`[arena] Generated ${scenarios.length} scenarios for battle ${battleId}`);
   return scenarioIds;
