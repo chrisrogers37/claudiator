@@ -25,44 +25,40 @@ export async function POST(
     );
   }
 
-  await db
-    .update(learningSkillLinks)
-    .set({ status: action, updatedAt: new Date() })
-    .where(
-      and(
-        eq(learningSkillLinks.learningId, id),
-        eq(learningSkillLinks.skillSlug, skillSlug)
-      )
-    );
-
-  // If all links for this learning are resolved, update learning status
-  const pendingLinks = await db
-    .select({ id: learningSkillLinks.id })
+  // Read all link state before the transaction (neon-http batch transactions
+  // don't support interactive reads, so we compute target state in JS first)
+  const allLinks = await db
+    .select({ skillSlug: learningSkillLinks.skillSlug, status: learningSkillLinks.status })
     .from(learningSkillLinks)
-    .where(
-      and(
-        eq(learningSkillLinks.learningId, id),
-        eq(learningSkillLinks.status, "pending")
-      )
-    );
+    .where(eq(learningSkillLinks.learningId, id));
 
-  if (pendingLinks.length === 0) {
-    const appliedLinks = await db
-      .select({ id: learningSkillLinks.id })
-      .from(learningSkillLinks)
+  // Compute what the state will be after the update
+  const updatedLinks = allLinks.map((link) =>
+    link.skillSlug === skillSlug ? { ...link, status: action } : link
+  );
+  const hasPending = updatedLinks.some((l) => l.status === "pending");
+  const hasApplied = updatedLinks.some((l) => l.status === "applied");
+
+  // Atomically: update link status and (if all resolved) update learning status
+  await db.transaction(async (tx) => {
+    await tx
+      .update(learningSkillLinks)
+      .set({ status: action, updatedAt: new Date() })
       .where(
         and(
           eq(learningSkillLinks.learningId, id),
-          eq(learningSkillLinks.status, "applied")
+          eq(learningSkillLinks.skillSlug, skillSlug)
         )
       );
 
-    const newStatus = appliedLinks.length > 0 ? "applied" : "dismissed";
-    await db
-      .update(learnings)
-      .set({ status: newStatus, updatedAt: new Date() })
-      .where(eq(learnings.id, id));
-  }
+    if (!hasPending) {
+      const newStatus = hasApplied ? "applied" : "dismissed";
+      await tx
+        .update(learnings)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(eq(learnings.id, id));
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }

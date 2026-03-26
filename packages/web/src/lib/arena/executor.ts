@@ -168,30 +168,33 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
       .from(arenaLlmCalls)
       .where(eq(arenaLlmCalls.battleId, battleId));
 
-    await db
-      .update(battles)
-      .set({
-        status: "complete",
-        verdict,
-        championScore,
-        challengerScore,
-        totalLlmCalls: llmAggregates?.totalCalls ?? null,
-        totalInputTokens: llmAggregates?.totalInput ?? null,
-        totalOutputTokens: llmAggregates?.totalOutput ?? null,
-        totalCostCents: llmAggregates?.totalCost ?? null,
-        totalLatencyMs: llmAggregates?.totalLatency ?? null,
-        completedAt: new Date(),
-      })
-      .where(eq(battles.id, battleId));
-
-    // Update candidate status
+    // Atomically: update battle verdict + candidate status
     const candidateStatus = verdict === "challenger_wins" ? "promoted" : "rejected";
-    await db
-      .update(intakeCandidates)
-      .set({ status: candidateStatus as "promoted" | "rejected", updatedAt: new Date() })
-      .where(eq(intakeCandidates.id, battle.challengerId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(battles)
+        .set({
+          status: "complete",
+          verdict,
+          championScore,
+          challengerScore,
+          totalLlmCalls: llmAggregates?.totalCalls ?? null,
+          totalInputTokens: llmAggregates?.totalInput ?? null,
+          totalOutputTokens: llmAggregates?.totalOutput ?? null,
+          totalCostCents: llmAggregates?.totalCost ?? null,
+          totalLatencyMs: llmAggregates?.totalLatency ?? null,
+          completedAt: new Date(),
+        })
+        .where(eq(battles.id, battleId));
 
-    // Update rankings
+      await tx
+        .update(intakeCandidates)
+        .set({ status: candidateStatus as "promoted" | "rejected", updatedAt: new Date() })
+        .where(eq(intakeCandidates.id, battle.challengerId));
+    });
+
+    // Update rankings (separate from completion transaction — if this fails,
+    // battle and candidate are in correct states, just ELO is stale)
     await updateRankings(db, battle.championSkillId, verdict, battleId);
 
     await emitPipelineEvent(db, "battle", battleId, "complete", {

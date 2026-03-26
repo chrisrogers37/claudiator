@@ -84,13 +84,11 @@ export async function rotateToken(
 
   if (!existing) return null;
 
-  // Revoke the old token
-  await db
-    .update(apiTokens)
-    .set({ revokedAt: new Date() })
-    .where(eq(apiTokens.id, tokenId));
-
-  // Generate a new token with the same name and remaining expiration
+  // Prepare new token values before entering the transaction
+  const rawBytes = randomBytes(TOKEN_BYTES);
+  const rawToken = TOKEN_PREFIX + rawBytes.toString("hex");
+  const tokenHash = await bcrypt.hash(rawToken, BCRYPT_ROUNDS);
+  const tokenPrefix = rawToken.slice(0, 11);
   const remainingDays = existing.expiresAt
     ? Math.max(
         1,
@@ -99,6 +97,37 @@ export async function rotateToken(
         )
       )
     : null;
+  const expiresAt = remainingDays
+    ? new Date(Date.now() + remainingDays * 24 * 60 * 60 * 1000)
+    : null;
 
-  return generateToken(userId, existing.name, remainingDays);
+  // Atomically: insert new token, then revoke old one.
+  // If insert fails, old token remains valid.
+  const [newToken] = await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(apiTokens)
+      .values({
+        userId,
+        tokenHash,
+        tokenPrefix,
+        name: existing.name,
+        expiresAt,
+      })
+      .returning();
+
+    await tx
+      .update(apiTokens)
+      .set({ revokedAt: new Date() })
+      .where(eq(apiTokens.id, tokenId));
+
+    return inserted;
+  });
+
+  return {
+    id: newToken.id,
+    rawToken,
+    name: existing.name,
+    prefix: tokenPrefix,
+    expiresAt,
+  };
 }

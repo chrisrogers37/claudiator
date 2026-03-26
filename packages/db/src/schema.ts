@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,10 @@ export const skillVersions = pgTable(
     uniqueIndex("skill_versions_skill_version_idx").on(table.skillId, table.version),
     index("skill_versions_skill_id_idx").on(table.skillId),
     index("skill_versions_is_latest_idx").on(table.skillId, table.isLatest),
+    // Enforce at most one isLatest=true per skill — prevents invisible skills on partial write failure
+    uniqueIndex("skill_versions_one_latest_idx")
+      .on(table.skillId)
+      .where(sql`${table.isLatest} = true`),
   ]
 );
 

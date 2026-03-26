@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createDb } from "@claudiator/db/client";
 import { skillVersions, skills } from "@claudiator/db/schema";
+import { publishNewVersion, promoteVersion } from "@claudiator/db/publish";
 import { eq, and } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -60,65 +61,26 @@ export async function POST(
 
     const nextVersion = bumpMinor(currentLatest?.version ?? "0.0.0");
 
-    // Unset current latest
-    await db
-      .update(skillVersions)
-      .set({ isLatest: false })
-      .where(
-        and(
-          eq(skillVersions.skillId, skill.id),
-          eq(skillVersions.isLatest, true)
-        )
-      );
-
-    // Create new version with old content
-    await db.insert(skillVersions).values({
+    // Atomically unset old latest, insert new version, update skill timestamp
+    await publishNewVersion(db, {
       skillId: skill.id,
       version: nextVersion,
       content: oldVersion.content,
       references: oldVersion.references,
       changelog: `Rollback to v${oldVersion.version}`,
       publishedBy: userId,
-      isLatest: true,
     });
-
-    // Update skill timestamp
-    await db
-      .update(skills)
-      .set({ updatedAt: new Date() })
-      .where(eq(skills.id, skill.id));
 
     return NextResponse.json({ ok: true, version: nextVersion });
   }
 
   if (body.versionId) {
-    // Promote a specific version (draft) to latest
-    // Unset current latest
-    await db
-      .update(skillVersions)
-      .set({ isLatest: false })
-      .where(
-        and(
-          eq(skillVersions.skillId, skill.id),
-          eq(skillVersions.isLatest, true)
-        )
-      );
-
-    // Set the specified version as latest
-    await db
-      .update(skillVersions)
-      .set({
-        isLatest: true,
-        changelog: body.changelog || undefined,
-        publishedAt: new Date(),
-      })
-      .where(eq(skillVersions.id, body.versionId));
-
-    // Update skill timestamp
-    await db
-      .update(skills)
-      .set({ updatedAt: new Date() })
-      .where(eq(skills.id, skill.id));
+    // Atomically promote a specific version (draft) to latest
+    await promoteVersion(db, {
+      skillId: skill.id,
+      versionId: body.versionId,
+      changelog: body.changelog,
+    });
 
     return NextResponse.json({ ok: true });
   }

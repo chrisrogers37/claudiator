@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
 import { skills, skillVersions } from "@claudiator/db/schema";
+import { publishNewVersion } from "@claudiator/db/publish";
 import { eq, and } from "drizzle-orm";
 
 export const publishSchema = z.object({
@@ -137,30 +138,15 @@ export async function publish(
     }
   }
 
-  // Unset current latest
-  if (currentLatest) {
-    await db
-      .update(skillVersions)
-      .set({ isLatest: false })
-      .where(eq(skillVersions.id, currentLatest.id));
-  }
-
-  // Insert new version
-  const [created] = await db
-    .insert(skillVersions)
-    .values({
-      skillId: skill.id,
-      version: newVersion,
-      content: skillContent,
-      references: Object.keys(references).length > 0 ? references : null,
-      changelog: args.changelog ?? null,
-      publishedBy: user.id,
-      isLatest: true,
-    })
-    .returning({
-      version: skillVersions.version,
-      publishedAt: skillVersions.publishedAt,
-    });
+  // Atomically unset old latest, insert new version, update skill timestamp
+  const created = await publishNewVersion(db, {
+    skillId: skill.id,
+    version: newVersion,
+    content: skillContent,
+    references: Object.keys(references).length > 0 ? references : null,
+    changelog: args.changelog ?? null,
+    publishedBy: user.id,
+  });
 
   return {
     content: [
