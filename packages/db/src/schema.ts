@@ -53,6 +53,25 @@ export const apiTokens = pgTable(
   ]
 );
 
+// ─── Skill Categories ────────────────────────────────────────────────────────
+
+export const skillCategories = pgTable(
+  "skill_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    domain: text("domain").notNull(),
+    function: text("function").notNull(),
+    description: text("description"),
+    slug: text("slug").notNull().unique(),
+    skillCount: integer("skill_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("skill_categories_domain_function_idx").on(table.domain, table.function),
+  ]
+);
+
 // ─── Skills ──────────────────────────────────────────────────────────────────
 
 export const skills = pgTable(
@@ -74,6 +93,7 @@ export const skills = pgTable(
         "configuration",
       ],
     }).notNull(),
+    categoryId: uuid("category_id").references(() => skillCategories.id, { onDelete: "set null" }),
     isUserInvocable: boolean("is_user_invocable").notNull().default(true),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }), // never written: always null
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -270,6 +290,7 @@ export const sourceConfigs = pgTable(
         "changelog",
         "github_repo",
         "mcp_registry",
+        "github_skill_repo",
       ],
     }).notNull(),
     checkFrequency: text("check_frequency", {
@@ -398,7 +419,8 @@ export const intakeCandidates = pgTable(
     sourceUrl: text("source_url"),
     rawContent: text("raw_content").notNull(),
     extractedPurpose: text("extracted_purpose"),
-    category: text("category"),
+    category: text("category"), // deprecated: use categoryId
+    categoryId: uuid("category_id").references(() => skillCategories.id, { onDelete: "set null" }),
     matchedChampionSkillId: uuid("matched_champion_skill_id").references(() => skills.id, {
       onDelete: "set null",
     }),
@@ -558,7 +580,8 @@ export const arenaRankings = pgTable(
       .notNull()
       .references(() => skills.id, { onDelete: "cascade" })
       .unique(),
-    category: text("category"), // never written: always null
+    category: text("category"), // deprecated: use categoryId
+    categoryId: uuid("category_id").references(() => skillCategories.id, { onDelete: "set null" }),
     wins: integer("wins").notNull().default(0),
     losses: integer("losses").notNull().default(0),
     draws: integer("draws").notNull().default(0),
@@ -591,6 +614,7 @@ export const arenaLlmCalls = pgTable(
         "skill_exec_challenger",
         "judge",
         "evolve",
+        "category_council",
       ],
     }).notNull(),
     model: text("model").notNull(),
