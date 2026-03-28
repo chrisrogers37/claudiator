@@ -15,7 +15,8 @@ export async function GET() {
   const items = await db
     .select()
     .from(learnings)
-    .orderBy(desc(learnings.distilledAt));
+    .orderBy(desc(learnings.distilledAt))
+    .limit(100);
 
   return NextResponse.json(items);
 }

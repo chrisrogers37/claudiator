@@ -48,7 +48,8 @@ export default async function LearningsPage({
     })
     .from(learnings)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(learnings.distilledAt));
+    .orderBy(desc(learnings.distilledAt))
+    .limit(100);
 
   const statusCounts = await db
     .select({

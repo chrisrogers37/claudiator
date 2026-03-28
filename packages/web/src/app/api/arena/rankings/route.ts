@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     query.where(eq(arenaRankings.category, category));
   }
 
-  const items = await query.orderBy(desc(arenaRankings.eloRating));
+  const items = await query.orderBy(desc(arenaRankings.eloRating)).limit(100);
 
   return NextResponse.json(items);
 }

@@ -31,7 +31,8 @@ export async function GET(
     .select()
     .from(skillFeedback)
     .where(eq(skillFeedback.skillId, skill.id))
-    .orderBy(desc(skillFeedback.createdAt));
+    .orderBy(desc(skillFeedback.createdAt))
+    .limit(100);
 
   return NextResponse.json(entries);
 }

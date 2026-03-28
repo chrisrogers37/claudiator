@@ -44,7 +44,8 @@ export default async function SkillFeedbackPage({
     .select()
     .from(skillFeedback)
     .where(eq(skillFeedback.skillId, skill.id))
-    .orderBy(sortColumn);
+    .orderBy(sortColumn)
+    .limit(100);
 
   return (
     <>
