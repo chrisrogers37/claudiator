@@ -27,7 +27,7 @@ export const publishSchema = z.object({
     ),
 });
 
-function bumpVersion(
+export function bumpVersion(
   current: string,
   type: "patch" | "minor" | "major"
 ): string {

@@ -10,6 +10,27 @@ interface DiscoveryResult {
   errors: string[];
 }
 
+export interface TreeEntry {
+  path: string;
+  sha: string;
+  type: string;
+}
+
+export function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
+  const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
+  if (!match) return null;
+  return { owner: match[1], repo: match[2] };
+}
+
+export function filterSkillFiles(tree: TreeEntry[]): TreeEntry[] {
+  return tree.filter((f) => {
+    if (f.type !== "blob") return false;
+    const lower = f.path.toLowerCase();
+    if (lower.includes("node_modules/") || lower.includes(".git/") || lower.includes("dist/") || lower.includes("build/")) return false;
+    return lower.endsWith("/skill.md") || lower === "skill.md";
+  });
+}
+
 export async function discoverSkillsFromRepo(
   db: Db,
   repoUrl: string,
@@ -17,30 +38,24 @@ export async function discoverSkillsFromRepo(
 ): Promise<DiscoveryResult> {
   const result: DiscoveryResult = { discovered: 0, skipped: 0, errors: [] };
 
-  // Parse owner/repo from URL
-  const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
-  if (!match) {
+  const parsed = parseGitHubUrl(repoUrl);
+  if (!parsed) {
     result.errors.push(`Invalid GitHub URL: ${repoUrl}`);
     return result;
   }
-  const [, owner, repo] = match;
+  const { owner, repo: rawRepo } = parsed;
+  const repo = rawRepo.replace(/\.git$/, "");
 
   // Fetch repo tree
-  let tree: { path: string; sha: string; type: string }[];
+  let tree: TreeEntry[];
   try {
-    tree = await fetchGitHubRepoTree(owner, repo.replace(/\.git$/, ""));
+    tree = await fetchGitHubRepoTree(owner, repo);
   } catch (err: any) {
     result.errors.push(`Failed to fetch repo tree: ${err.message}`);
     return result;
   }
 
-  // Find SKILL.md files (case-insensitive) — ignore node_modules, .git, dist, build
-  const skillFiles = tree.filter((f) => {
-    if (f.type !== "blob") return false;
-    const lower = f.path.toLowerCase();
-    if (lower.includes("node_modules/") || lower.includes(".git/") || lower.includes("dist/") || lower.includes("build/")) return false;
-    return lower.endsWith("/skill.md") || lower === "skill.md";
-  });
+  const skillFiles = filterSkillFiles(tree);
 
   console.log(`[discovery] Found ${skillFiles.length} SKILL.md files in ${owner}/${repo}`);
 
@@ -57,7 +72,7 @@ export async function discoverSkillsFromRepo(
     // Fetch content
     let content: string;
     try {
-      content = await fetchGitHubBlob(owner, repo.replace(/\.git$/, ""), file.sha);
+      content = await fetchGitHubBlob(owner, repo, file.sha);
     } catch (err: any) {
       result.errors.push(`Failed to fetch ${file.path}: ${err.message}`);
       continue;

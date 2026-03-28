@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 
 const K_FACTOR = 32;
 
-function calculateElo(
+export function calculateElo(
   rating: number,
   opponentRating: number,
   outcome: 1 | 0 | 0.5
