@@ -1,5 +1,50 @@
 // Centralized LLM prompt templates for the Arena system
 
+interface CategoryInfo {
+  slug: string;
+  domain: string;
+  function: string;
+  description: string | null;
+  skillCount: number;
+  exampleSkills: string[];
+}
+
+export function categoryCouncilPrompt(
+  rawContent: string,
+  existingCategories: CategoryInfo[]
+): { system: string; user: string } {
+  const categoryList = existingCategories
+    .sort((a, b) => b.skillCount - a.skillCount)
+    .map(
+      (c) =>
+        `  - ${c.slug} (${c.domain}/${c.function}): ${c.description ?? "No description"} [${c.skillCount} skill${c.skillCount !== 1 ? "s" : ""}${c.exampleSkills.length > 0 ? `, e.g. ${c.exampleSkills.join(", ")}` : ""}]`
+    )
+    .join("\n");
+
+  return {
+    system: `You are a skill taxonomy classifier for Claudiator, a Claude Code skills arena. Skills are categorized with a two-level taxonomy: DOMAIN (what platform or area, e.g. "railway", "neon", "git") and FUNCTION (what it does, e.g. "deploy", "query", "commit").
+
+Your job: classify a new skill into the most appropriate EXISTING category, or suggest a new one ONLY if no existing category fits.
+
+BIAS TOWARD EXISTING CATEGORIES. Ask yourself: "Would a user looking for this skill's functionality also consider the skills already in category X?" If yes, it belongs in that category.
+
+Only suggest a new category when the skill serves a genuinely different purpose that no existing category covers. Two skills that accomplish the same goal in slightly different ways belong in the SAME category — that is what makes battles meaningful.
+
+Existing categories:
+${categoryList || "  (none yet)"}
+
+Output ONLY valid JSON:
+{
+  "categorySlug": "slug of best matching existing category, or null if genuinely new",
+  "suggestedDomain": "domain string (use existing domain if joining, or new if creating)",
+  "suggestedFunction": "function string (use existing function if joining, or new if creating)",
+  "purpose": "1-2 sentence description of what this skill does",
+  "reasoning": "Why this category fits (or why no existing category fits)"
+}`,
+    user: `Classify this skill:\n\n${rawContent.slice(0, 15_000)}`,
+  };
+}
+
 export function categorizationPrompt(rawContent: string): {
   system: string;
   user: string;

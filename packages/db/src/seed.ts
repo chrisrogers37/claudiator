@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createDb } from "./client.js";
-import { skills, skillVersions } from "./schema.js";
+import { eq, sql } from "drizzle-orm";
+import { skills, skillVersions, skillCategories } from "./schema.js";
 
 // Category mapping for all 38 skills. Derived from skill-inventory.md research.
 const SKILL_CATEGORIES: Record<string, string> = {
@@ -50,6 +51,49 @@ const SKILL_CATEGORIES: Record<string, string> = {
   notifications: "utilities",
   "claudiator-migrate": "utilities",
   "cache-audit": "utilities",
+};
+
+// Granular taxonomy mapping for the skill_categories table.
+// Each skill gets a (domain, function) pair that becomes its category row.
+const SKILL_TAXONOMY: Record<string, { domain: string; function: string }> = {
+  "modal-deploy": { domain: "modal", function: "deploy" },
+  "modal-logs": { domain: "modal", function: "logs" },
+  "modal-status": { domain: "modal", function: "status" },
+  "railway-deploy": { domain: "railway", function: "deploy" },
+  "railway-logs": { domain: "railway", function: "logs" },
+  "railway-status": { domain: "railway", function: "status" },
+  "vercel-deploy": { domain: "vercel", function: "deploy" },
+  "vercel-logs": { domain: "vercel", function: "logs" },
+  "vercel-status": { domain: "vercel", function: "status" },
+  "neon-branch": { domain: "neon", function: "branch" },
+  "neon-info": { domain: "neon", function: "info" },
+  "neon-query": { domain: "neon", function: "query" },
+  "snowflake-query": { domain: "snowflake", function: "query" },
+  "dbt": { domain: "dbt", function: "transform" },
+  "review-pr": { domain: "code-review", function: "pr" },
+  "review-changes": { domain: "code-review", function: "changes" },
+  "review-self": { domain: "code-review", function: "self" },
+  "security-audit": { domain: "security", function: "audit" },
+  "product-enhance": { domain: "product", function: "enhance" },
+  "product-brainstorm": { domain: "product", function: "brainstorm" },
+  "implement-plan": { domain: "planning", function: "implement" },
+  "tech-debt": { domain: "planning", function: "tech-debt" },
+  "docs-review": { domain: "docs", function: "review" },
+  "investigate-app": { domain: "investigation", function: "app" },
+  "design-review": { domain: "design", function: "review" },
+  "frontend-performance-audit": { domain: "performance", function: "audit" },
+  "quick-commit": { domain: "git", function: "commit" },
+  "commit-push-pr": { domain: "git", function: "commit-push-pr" },
+  "context-resume": { domain: "session", function: "resume" },
+  "session-handoff": { domain: "session", function: "handoff" },
+  "find-skills": { domain: "skills", function: "discovery" },
+  "worktree": { domain: "git", function: "worktree" },
+  "lessons": { domain: "learning", function: "lessons" },
+  "repo-health": { domain: "repo", function: "health" },
+  "notes": { domain: "notes", function: "manage" },
+  "notifications": { domain: "notifications", function: "manage" },
+  "claudiator-migrate": { domain: "claudiator", function: "migrate" },
+  "cache-audit": { domain: "cache", function: "audit" },
 };
 
 function parseFrontmatter(content: string): Record<string, string> {
@@ -174,6 +218,68 @@ async function main() {
       console.log("  Seeded: _shared (orchestration guide)");
     }
   }
+
+  // ─── Phase 2: Seed skill_categories and backfill categoryId ──────────────
+
+  console.log("\nSeeding skill categories...");
+
+  // Collect unique (domain, function) pairs
+  const uniqueCategories = new Map<string, { domain: string; function: string }>();
+  for (const [, tax] of Object.entries(SKILL_TAXONOMY)) {
+    const key = `${tax.domain}-${tax.function}`;
+    if (!uniqueCategories.has(key)) {
+      uniqueCategories.set(key, tax);
+    }
+  }
+
+  // Insert categories (idempotent)
+  for (const [slug, { domain, function: fn }] of uniqueCategories) {
+    await db
+      .insert(skillCategories)
+      .values({
+        domain,
+        function: fn,
+        slug,
+        description: `Skills for ${fn} in the ${domain} domain`,
+      })
+      .onConflictDoNothing();
+  }
+
+  // Fetch all categories for ID lookup
+  const allCategories = await db.select().from(skillCategories);
+  const categoryBySlug = new Map(allCategories.map((c) => [c.slug, c]));
+
+  console.log(`  Inserted/verified ${uniqueCategories.size} categories.`);
+
+  // Backfill skills.categoryId
+  let backfilled = 0;
+  for (const [skillSlug, tax] of Object.entries(SKILL_TAXONOMY)) {
+    const catSlug = `${tax.domain}-${tax.function}`;
+    const cat = categoryBySlug.get(catSlug);
+    if (cat) {
+      await db
+        .update(skills)
+        .set({ categoryId: cat.id })
+        .where(eq(skills.slug, skillSlug));
+      backfilled++;
+    }
+  }
+
+  console.log(`  Backfilled categoryId on ${backfilled} skills.`);
+
+  // Update skill counts per category
+  for (const cat of allCategories) {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(skills)
+      .where(eq(skills.categoryId, cat.id));
+    await db
+      .update(skillCategories)
+      .set({ skillCount: count })
+      .where(eq(skillCategories.id, cat.id));
+  }
+
+  console.log("  Updated skill counts on all categories.");
 
   console.log(`\nSeed complete. ${dirs.length} skills + _shared imported as v1.0.0.`);
 }

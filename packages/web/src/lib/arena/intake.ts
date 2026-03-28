@@ -1,9 +1,10 @@
 import type { Db } from "@claudiator/db/client";
-import { intakeCandidates, skills, skillVersions } from "@claudiator/db/schema";
-import { eq, and } from "drizzle-orm";
-import { categorizationPrompt, fightScoringPrompt } from "./prompts";
+import { intakeCandidates, skills, skillVersions, arenaRankings } from "@claudiator/db/schema";
+import { eq, and, desc } from "drizzle-orm";
+import { fightScoringPrompt } from "./prompts";
 import { callLlm } from "./llm";
 import { emitPipelineEvent } from "./pipeline-events";
+import { categorizeWithCouncil } from "./category-council";
 
 export async function categorizeCandidate(
   db: Db,
@@ -18,43 +19,26 @@ export async function categorizeCandidate(
 
   await emitPipelineEvent(db, "candidate", candidateId, "categorizing");
 
-  const prompt = categorizationPrompt(candidate.rawContent);
+  // Use the category council (5 Haiku agents vote on classification)
+  const council = await categorizeWithCouncil(db, candidate.rawContent, candidateId);
 
-  const { text } = await callLlm({
-    db,
-    model: "claude-haiku-4-5-20251001",
-    system: prompt.system,
-    prompt: prompt.user,
-    maxTokens: 1024,
-    callType: "categorize",
-    candidateId,
-    parentEntityId: candidateId,
-    parentEntityType: "intake_candidate",
-  });
-
-  let result: { purpose: string; category: string; matchesExisting: string | null };
-  try {
-    result = JSON.parse(text);
-  } catch {
-    console.error(`[arena] Failed to parse categorization for ${candidateId}:`, text.slice(0, 200));
-    return;
-  }
-
-  // Find matching champion skill if specified
+  // Find the champion: highest-ELO skill in the matched category
   let matchedSkillId: string | null = null;
-  if (result.matchesExisting) {
-    const [matched] = await db
-      .select({ id: skills.id })
-      .from(skills)
-      .where(eq(skills.slug, result.matchesExisting));
-    matchedSkillId = matched?.id ?? null;
-  }
+  const [topSkill] = await db
+    .select({ id: skills.id })
+    .from(skills)
+    .leftJoin(arenaRankings, eq(skills.id, arenaRankings.skillId))
+    .where(eq(skills.categoryId, council.categoryId))
+    .orderBy(desc(arenaRankings.eloRating))
+    .limit(1);
+  matchedSkillId = topSkill?.id ?? null;
 
   await db
     .update(intakeCandidates)
     .set({
-      extractedPurpose: result.purpose,
-      category: result.category,
+      extractedPurpose: council.purpose,
+      category: `${council.domain}/${council.function}`,
+      categoryId: council.categoryId,
       matchedChampionSkillId: matchedSkillId,
       status: "categorized",
       updatedAt: new Date(),
@@ -62,11 +46,13 @@ export async function categorizeCandidate(
     .where(eq(intakeCandidates.id, candidateId));
 
   await emitPipelineEvent(db, "candidate", candidateId, "categorized", {
-    category: result.category,
-    matchedChampion: result.matchesExisting,
+    category: `${council.domain}/${council.function}`,
+    isNewCategory: council.isNew,
+    councilVotes: council.votes.length,
+    matchedChampion: matchedSkillId,
   });
 
-  console.log(`[arena] Categorized ${candidateId}: ${result.category} — "${result.purpose}"`);
+  console.log(`[arena] Categorized ${candidateId}: ${council.domain}/${council.function}${council.isNew ? " (NEW)" : ""} — "${council.purpose}"`);
 }
 
 export async function scoreFightWorthiness(

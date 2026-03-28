@@ -1,5 +1,5 @@
 import type { Db } from "@claudiator/db/client";
-import { battleScenarios, battles, intakeCandidates } from "@claudiator/db/schema";
+import { battleScenarios, battles, intakeCandidates, skillCategories } from "@claudiator/db/schema";
 import { eq } from "drizzle-orm";
 import { scenarioGenerationPrompt } from "./prompts";
 import { callLlm } from "./llm";
@@ -32,9 +32,21 @@ export async function generateScenarios(
 
   await emitPipelineEvent(db, "battle", battleId, "generating_scenarios");
 
+  // Resolve category label: prefer domain/function format from skillCategories
+  let categoryLabel = candidate.category || "workflow";
+  if (candidate.categoryId) {
+    const [cat] = await db
+      .select({ domain: skillCategories.domain, function: skillCategories.function })
+      .from(skillCategories)
+      .where(eq(skillCategories.id, candidate.categoryId));
+    if (cat) {
+      categoryLabel = `${cat.domain}/${cat.function}`;
+    }
+  }
+
   const prompt = scenarioGenerationPrompt(
     candidate.extractedPurpose || "unknown",
-    candidate.category || "workflow"
+    categoryLabel
   );
 
   const { text } = await callLlm({

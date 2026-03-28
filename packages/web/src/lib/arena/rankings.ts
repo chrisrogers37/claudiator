@@ -1,5 +1,5 @@
 import type { Db } from "@claudiator/db/client";
-import { arenaRankings, arenaEloHistory } from "@claudiator/db/schema";
+import { arenaRankings, arenaEloHistory, skills } from "@claudiator/db/schema";
 import { eq } from "drizzle-orm";
 
 const K_FACTOR = 32;
@@ -26,9 +26,18 @@ export async function updateRankings(
     .where(eq(arenaRankings.skillId, championSkillId));
 
   if (!ranking) {
+    // Look up the skill's categoryId to store on the ranking
+    const [skill] = await db
+      .select({ categoryId: skills.categoryId })
+      .from(skills)
+      .where(eq(skills.id, championSkillId));
+
     [ranking] = await db
       .insert(arenaRankings)
-      .values({ skillId: championSkillId })
+      .values({
+        skillId: championSkillId,
+        categoryId: skill?.categoryId ?? null,
+      })
       .returning();
   }
 
