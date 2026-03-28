@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     query.where(eq(battles.status, status as any));
   }
 
-  const items = await query.orderBy(desc(battles.createdAt));
+  const items = await query.orderBy(desc(battles.createdAt)).limit(100);
 
   return NextResponse.json(items);
 }

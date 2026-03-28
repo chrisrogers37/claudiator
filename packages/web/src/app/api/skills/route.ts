@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { validateToken } from "@claudiator/db/auth";
 import { createDb } from "@claudiator/db/client";
 import { skills, skillVersions } from "@claudiator/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
 
@@ -41,7 +41,9 @@ export async function GET(request: Request) {
         eq(skillVersions.skillId, skills.id),
         eq(skillVersions.isLatest, true)
       )
-    );
+    )
+    .orderBy(desc(skills.createdAt))
+    .limit(100);
 
   return NextResponse.json(results);
 }

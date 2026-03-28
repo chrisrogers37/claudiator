@@ -29,7 +29,8 @@ export async function GET() {
     })
     .from(apiTokens)
     .where(eq(apiTokens.userId, (session as any).userId))
-    .orderBy(desc(apiTokens.createdAt));
+    .orderBy(desc(apiTokens.createdAt))
+    .limit(100);
 
   return NextResponse.json(tokens);
 }

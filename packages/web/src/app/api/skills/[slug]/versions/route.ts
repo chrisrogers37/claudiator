@@ -40,7 +40,8 @@ export async function GET(
     })
     .from(skillVersions)
     .where(eq(skillVersions.skillId, skill.id))
-    .orderBy(desc(skillVersions.publishedAt));
+    .orderBy(desc(skillVersions.publishedAt))
+    .limit(100);
 
   return NextResponse.json(versions);
 }

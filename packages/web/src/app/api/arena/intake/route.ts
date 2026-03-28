@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
     .select()
     .from(intakeCandidates)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(intakeCandidates.createdAt));
+    .orderBy(desc(intakeCandidates.createdAt))
+    .limit(100);
 
   return NextResponse.json(items);
 }
