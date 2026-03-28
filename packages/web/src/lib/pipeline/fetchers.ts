@@ -95,6 +95,46 @@ function githubHeaders(): Record<string, string> {
   return headers;
 }
 
+export async function fetchGitHubRepoTree(
+  owner: string,
+  repo: string
+): Promise<{ path: string; sha: string; type: string }[]> {
+  const headers = githubHeaders();
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`,
+    { headers, signal: AbortSignal.timeout(30_000) }
+  );
+  if (!res.ok) {
+    throw new Error(`GitHub tree API ${res.status}: ${await res.text()}`);
+  }
+  const data = await res.json();
+  return (data.tree ?? []).map((item: any) => ({
+    path: item.path as string,
+    sha: item.sha as string,
+    type: item.type as string,
+  }));
+}
+
+export async function fetchGitHubBlob(
+  owner: string,
+  repo: string,
+  sha: string
+): Promise<string> {
+  const headers = githubHeaders();
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/blobs/${sha}`,
+    { headers, signal: AbortSignal.timeout(15_000) }
+  );
+  if (!res.ok) {
+    throw new Error(`GitHub blob API ${res.status}: ${await res.text()}`);
+  }
+  const data = await res.json();
+  if (data.encoding === "base64") {
+    return Buffer.from(data.content, "base64").toString("utf-8");
+  }
+  return data.content ?? "";
+}
+
 function extractTextContent(html: string): string {
   let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
   text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");

@@ -3,6 +3,7 @@ import { sourceConfigs } from "@claudiator/db/schema";
 import { eq, sql, and, isNull, or } from "drizzle-orm";
 import { fetchSource } from "./fetchers";
 import { detectChanges } from "./change-detection";
+import { discoverSkillsFromRepo } from "./skill-discovery";
 
 interface ScrapeResult {
   sourcesChecked: number;
@@ -46,7 +47,11 @@ export async function runScraperJob(
     content: string;
   }[] = [];
 
-  for (const source of sources) {
+  // Separate skill repo sources from regular scraper sources
+  const regularSources = sources.filter(s => s.sourceType !== "github_skill_repo");
+  const skillRepoSources = sources.filter(s => s.sourceType === "github_skill_repo");
+
+  for (const source of regularSources) {
     try {
       const content = await fetchSource(
         source.url,
@@ -75,6 +80,21 @@ export async function runScraperJob(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[pipeline] Failed to scrape ${source.name}:`, message);
+      errors.push({ name: source.name, error: message });
+    }
+  }
+
+  // Handle skill repo sources via discovery pipeline
+  for (const source of skillRepoSources) {
+    try {
+      const discoveryResult = await discoverSkillsFromRepo(db, source.url, source.id);
+      changesDetected += discoveryResult.discovered;
+      for (const err of discoveryResult.errors) {
+        errors.push({ name: source.name, error: err });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[pipeline] Failed skill discovery for ${source.name}:`, message);
       errors.push({ name: source.name, error: message });
     }
   }
