@@ -8,6 +8,7 @@ const tabs = [
   { href: "/arena/intake", label: "Intake", icon: "\u{1F4DC}" },
   { href: "/arena/battles", label: "Battles", icon: "\u2694" },
   { href: "/arena/rankings", label: "Rankings", icon: "\u{1F3C6}" },
+  { href: "/arena/categories", label: "Categories", icon: "\u{1F3F7}" },
 ];
 
 export function ArenaNav() {
