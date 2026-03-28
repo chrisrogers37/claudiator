@@ -90,6 +90,12 @@ export async function generateEvolvedVersion(
 
   if (!evolvedContent) return null;
 
+  // Get original candidate's category info for the evolved version
+  const [originalCandidate] = await db
+    .select({ category: intakeCandidates.category, categoryId: intakeCandidates.categoryId })
+    .from(intakeCandidates)
+    .where(eq(intakeCandidates.id, battle.challengerId));
+
   // Create a new intake candidate for the evolved version
   const [newCandidate] = await db
     .insert(intakeCandidates)
@@ -97,7 +103,8 @@ export async function generateEvolvedVersion(
       sourceType: "community_submission",
       rawContent: evolvedContent,
       extractedPurpose: `Evolved version from battle ${battleId}`,
-      category: (await db.select().from(intakeCandidates).where(eq(intakeCandidates.id, battle.challengerId)))[0]?.category,
+      category: originalCandidate?.category,
+      categoryId: originalCandidate?.categoryId ?? null,
       matchedChampionSkillId: battle.championSkillId,
       fightScore: 75,
       status: "queued",

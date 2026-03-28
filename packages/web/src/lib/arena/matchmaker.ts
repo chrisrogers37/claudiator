@@ -4,8 +4,9 @@ import {
   battles,
   skills,
   skillVersions,
+  arenaRankings,
 } from "@claudiator/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNotNull } from "drizzle-orm";
 
 const DEFAULT_BATTLE_CONFIG = {
   scenarioCount: 3,
@@ -29,7 +30,28 @@ export async function findNextMatch(
     .orderBy(desc(intakeCandidates.fightScore))
     .limit(1);
 
-  if (!candidate || !candidate.matchedChampionSkillId) return null;
+  if (!candidate) return null;
+
+  let championSkillId = candidate.matchedChampionSkillId;
+
+  // If no matched champion but candidate has a category, find the highest-ELO skill in that category
+  if (!championSkillId && candidate.categoryId) {
+    const [topRanked] = await db
+      .select({ skillId: arenaRankings.skillId })
+      .from(arenaRankings)
+      .innerJoin(skills, eq(skills.id, arenaRankings.skillId))
+      .where(eq(skills.categoryId, candidate.categoryId))
+      .orderBy(desc(arenaRankings.eloRating))
+      .limit(1);
+
+    if (!topRanked) {
+      // No existing skills in this category — skip candidate
+      return null;
+    }
+    championSkillId = topRanked.skillId;
+  }
+
+  if (!championSkillId) return null;
 
   // Get the champion's latest version
   const [version] = await db
@@ -37,7 +59,7 @@ export async function findNextMatch(
     .from(skillVersions)
     .where(
       and(
-        eq(skillVersions.skillId, candidate.matchedChampionSkillId),
+        eq(skillVersions.skillId, championSkillId),
         eq(skillVersions.isLatest, true)
       )
     );
@@ -46,7 +68,7 @@ export async function findNextMatch(
 
   return {
     candidateId: candidate.id,
-    championSkillId: candidate.matchedChampionSkillId,
+    championSkillId,
     championVersionId: version.id,
   };
 }
