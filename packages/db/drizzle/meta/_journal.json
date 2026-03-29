@@ -36,6 +36,41 @@
       "when": 1743033600000,
       "tag": "0005_learnings_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "0006",
+      "when": 1743206400000,
+      "tag": "0006_db_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "0007",
+      "when": 1743206401000,
+      "tag": "0007_slug_to_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "0008",
+      "when": 1743206402000,
+      "tag": "0008_remaining_enum_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "0009",
+      "when": 1743206403000,
+      "tag": "0009_skill_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "0010",
+      "when": 1743292800000,
+      "tag": "0010_rename_session_to_workflow",
+      "breakpoints": true
     }
   ]
 }

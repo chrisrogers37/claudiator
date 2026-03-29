@@ -15,10 +15,14 @@ CREATE TABLE IF NOT EXISTS learnings (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE INDEX IF NOT EXISTS idx_learnings_status ON learnings (status);
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_learnings_distilled_at ON learnings (distilled_at);
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_learnings_source_type ON learnings (source_type);
+--> statement-breakpoint
 
 -- 2. Learning-skill links table
 CREATE TABLE IF NOT EXISTS learning_skill_links (
@@ -30,8 +34,12 @@ CREATE TABLE IF NOT EXISTS learning_skill_links (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX IF NOT EXISTS learning_skill_links_unique ON learning_skill_links (learning_id, skill_slug);
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_learning_skill_links_learning ON learning_skill_links (learning_id);
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_learning_skill_links_skill ON learning_skill_links (skill_slug);
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS idx_learning_skill_links_status ON learning_skill_links (status);
