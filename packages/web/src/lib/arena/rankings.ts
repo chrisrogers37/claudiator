@@ -92,7 +92,7 @@ export function assignTitle(wins: number, losses: number, draws: number): string
   if (total === 0) return "The Newcomer";
   if (losses === 0 && wins >= 3) return "The Undefeated";
   if (total >= 5 && wins / total >= 0.8) return "The Veteran";
-  if (wins >= 1) return "The Contender";
   if (losses > wins) return "The Fallen";
+  if (wins >= 1) return "The Contender";
   return "The Contender";
 }
