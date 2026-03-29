@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createDb } from "@claudiator/db/client";
-import { skills, skillInvocations, skillFeedback } from "@claudiator/db/schema";
-import { sql, desc, asc } from "drizzle-orm";
+import { skills, skillInvocations, skillFeedback, skillCategories } from "@claudiator/db/schema";
+import { sql, desc, asc, eq } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,8 @@ export default async function SkillAdoptionPage({
     .select({
       slug: skills.slug,
       name: skills.name,
-      category: skills.category,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
       invocations7d: sql<number>`COALESCE((
         SELECT COUNT(*) FROM skill_invocations
         WHERE skill_slug = ${skills.slug} AND invoked_at >= ${d7.toISOString()}
@@ -57,6 +58,7 @@ export default async function SkillAdoptionPage({
       ), 0)::int`,
     })
     .from(skills)
+    .leftJoin(skillCategories, eq(skills.categoryId, skillCategories.id))
     .orderBy(
       sortKey === "users"
         ? desc(sql`(SELECT COUNT(DISTINCT user_id) FROM skill_invocations WHERE skill_slug = ${skills.slug} AND invoked_at >= ${d30.toISOString()})`)
@@ -137,7 +139,7 @@ export default async function SkillAdoptionPage({
                     <span className="font-mono text-sm text-cyan-400">
                       /{skill.name}
                     </span>
-                    <Badge label={skill.category} />
+                    <Badge label={skill.categoryDomain && skill.categoryFunction ? `${skill.categoryDomain}/${skill.categoryFunction}` : "uncategorized"} />
                     {isDead && <Badge label="dead" variant="red" />}
                     {isProblem && <Badge label="low rating" variant="amber" />}
                   </div>

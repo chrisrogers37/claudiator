@@ -81,25 +81,12 @@ export const skills = pgTable(
     slug: text("slug").notNull().unique(), // directory name, e.g. "quick-commit"
     name: text("name").notNull(), // from SKILL.md frontmatter "name" field
     description: text("description").notNull(),
-    category: text("category", {
-      enum: [
-        "deployment",
-        "database",
-        "code-review",
-        "planning",
-        "design",
-        "workflow",
-        "utilities",
-        "configuration",
-      ],
-    }).notNull(),
     categoryId: uuid("category_id").references(() => skillCategories.id, { onDelete: "set null" }),
     isUserInvocable: boolean("is_user_invocable").notNull().default(true),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }), // never written: always null
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("skills_category_idx").on(table.category)]
 );
 
 // ─── Skill Versions ──────────────────────────────────────────────────────────
@@ -419,7 +406,6 @@ export const intakeCandidates = pgTable(
     sourceUrl: text("source_url"),
     rawContent: text("raw_content").notNull(),
     extractedPurpose: text("extracted_purpose"),
-    category: text("category"), // deprecated: use categoryId
     categoryId: uuid("category_id").references(() => skillCategories.id, { onDelete: "set null" }),
     matchedChampionSkillId: uuid("matched_champion_skill_id").references(() => skills.id, {
       onDelete: "set null",
@@ -437,7 +423,6 @@ export const intakeCandidates = pgTable(
   },
   (table) => [
     index("idx_intake_status").on(table.status),
-    index("idx_intake_category").on(table.category),
     index("idx_intake_fight_score").on(table.fightScore),
   ]
 );
@@ -580,7 +565,6 @@ export const arenaRankings = pgTable(
       .notNull()
       .references(() => skills.id, { onDelete: "cascade" })
       .unique(),
-    category: text("category"), // deprecated: use categoryId
     categoryId: uuid("category_id").references(() => skillCategories.id, { onDelete: "set null" }),
     wins: integer("wins").notNull().default(0),
     losses: integer("losses").notNull().default(0),
@@ -592,7 +576,6 @@ export const arenaRankings = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("idx_rankings_category").on(table.category),
     index("idx_rankings_elo").on(table.eloRating),
   ]
 );

@@ -4,56 +4,7 @@ import { createDb } from "./client.js";
 import { eq, sql } from "drizzle-orm";
 import { skills, skillVersions, skillCategories } from "./schema.js";
 
-// Category mapping for all 38 skills. Derived from skill-inventory.md research.
-const SKILL_CATEGORIES: Record<string, string> = {
-  // Deployment & Infrastructure
-  "modal-deploy": "deployment",
-  "modal-logs": "deployment",
-  "modal-status": "deployment",
-  "railway-deploy": "deployment",
-  "railway-logs": "deployment",
-  "railway-status": "deployment",
-  "vercel-deploy": "deployment",
-  "vercel-logs": "deployment",
-  "vercel-status": "deployment",
-  // Database & Data
-  "neon-branch": "database",
-  "neon-info": "database",
-  "neon-query": "database",
-  "snowflake-query": "database",
-  dbt: "database",
-  // Code Review & QA
-  "review-pr": "code-review",
-  "review-changes": "code-review",
-  "review-self": "code-review",
-  "security-audit": "code-review",
-  // Planning & Documentation
-  "product-enhance": "planning",
-  "product-brainstorm": "planning",
-  "implement-plan": "planning",
-  "tech-debt": "planning",
-  "docs-review": "planning",
-  "investigate-app": "planning",
-  // Design & Performance
-  "design-review": "design",
-  "frontend-performance-audit": "design",
-  // Development Workflow
-  "quick-commit": "workflow",
-  "commit-push-pr": "workflow",
-  "context-resume": "workflow",
-  "session-handoff": "workflow",
-  "find-skills": "workflow",
-  worktree: "workflow",
-  lessons: "workflow",
-  "repo-health": "workflow",
-  // Utilities
-  notes: "utilities",
-  notifications: "utilities",
-  "claudiator-migrate": "utilities",
-  "cache-audit": "utilities",
-};
-
-// Granular taxonomy mapping for the skill_categories table.
+// Two-level taxonomy mapping for the skill_categories table.
 // Each skill gets a (domain, function) pair that becomes its category row.
 const SKILL_TAXONOMY: Record<string, { domain: string; function: string }> = {
   "modal-deploy": { domain: "modal", function: "deploy" },
@@ -145,8 +96,6 @@ async function main() {
     const name = frontmatter.name || slug;
     const description = frontmatter.description || "";
     const isUserInvocable = frontmatter["user-invocable"] !== "false";
-    const category = SKILL_CATEGORIES[slug] || "utilities";
-
     // Read reference files if they exist
     let references: Record<string, string> | null = null;
     const refsDir = join(skillsDir, slug, "references");
@@ -167,7 +116,6 @@ async function main() {
         slug,
         name,
         description,
-        category: category as typeof skills.$inferInsert.category,
         isUserInvocable,
       })
       .onConflictDoNothing()
@@ -188,7 +136,8 @@ async function main() {
       isLatest: true,
     });
 
-    console.log(`  Seeded: ${slug} (${category})`);
+    const tax = SKILL_TAXONOMY[slug];
+    console.log(`  Seeded: ${slug} (${tax ? `${tax.domain}/${tax.function}` : "uncategorized"})`);
   }
 
   // Also seed the _shared/orchestration-guide.md as a special non-invocable entry
@@ -201,7 +150,6 @@ async function main() {
         slug: "_shared",
         name: "Shared Orchestration Guide",
         description: "Shared reference for skills that use subagent orchestration. Not a skill.",
-        category: "utilities" as const,
         isUserInvocable: false,
       })
       .onConflictDoNothing()

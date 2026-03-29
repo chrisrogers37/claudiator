@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { validateToken } from "@claudiator/db/auth";
 import { createDb } from "@claudiator/db/client";
-import { skills, skillVersions } from "@claudiator/db/schema";
+import { skills, skillVersions, skillCategories } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -31,7 +31,8 @@ export async function GET(
       slug: skills.slug,
       name: skills.name,
       description: skills.description,
-      category: skills.category,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
       version: skillVersions.version,
       content: skillVersions.content,
       references: skillVersions.references,
@@ -45,6 +46,7 @@ export async function GET(
         eq(skillVersions.isLatest, true)
       )
     )
+    .leftJoin(skillCategories, eq(skills.categoryId, skillCategories.id))
     .where(eq(skills.slug, slug));
 
   if (!result) {

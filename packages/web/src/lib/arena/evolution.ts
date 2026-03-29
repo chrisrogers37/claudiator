@@ -92,7 +92,7 @@ export async function generateEvolvedVersion(
 
   // Get original candidate's category info for the evolved version
   const [originalCandidate] = await db
-    .select({ category: intakeCandidates.category, categoryId: intakeCandidates.categoryId })
+    .select({ categoryId: intakeCandidates.categoryId })
     .from(intakeCandidates)
     .where(eq(intakeCandidates.id, battle.challengerId));
 
@@ -103,7 +103,6 @@ export async function generateEvolvedVersion(
       sourceType: "community_submission",
       rawContent: evolvedContent,
       extractedPurpose: `Evolved version from battle ${battleId}`,
-      category: originalCandidate?.category,
       categoryId: originalCandidate?.categoryId ?? null,
       matchedChampionSkillId: battle.championSkillId,
       fightScore: 75,

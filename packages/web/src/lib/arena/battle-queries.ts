@@ -6,6 +6,7 @@ import {
   battleJudgments,
   skills,
   intakeCandidates,
+  skillCategories,
 } from "@claudiator/db/schema";
 import { eq, inArray, asc } from "drizzle-orm";
 
@@ -29,7 +30,8 @@ export async function getBattleDetail(db: Db, battleId: string) {
       challengerSourceType: intakeCandidates.sourceType,
       challengerSourceUrl: intakeCandidates.sourceUrl,
       challengerRawContent: intakeCandidates.rawContent,
-      challengerCategory: intakeCandidates.category,
+      challengerCategoryDomain: skillCategories.domain,
+      challengerCategoryFunction: skillCategories.function,
       challengerExtractedPurpose: intakeCandidates.extractedPurpose,
       championSkillName: skills.name,
       championSkillSlug: skills.slug,
@@ -37,6 +39,7 @@ export async function getBattleDetail(db: Db, battleId: string) {
     .from(battles)
     .innerJoin(intakeCandidates, eq(battles.challengerId, intakeCandidates.id))
     .innerJoin(skills, eq(battles.championSkillId, skills.id))
+    .leftJoin(skillCategories, eq(intakeCandidates.categoryId, skillCategories.id))
     .where(eq(battles.id, battleId))
     .limit(1);
 

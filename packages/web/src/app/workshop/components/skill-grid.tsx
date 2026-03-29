@@ -4,8 +4,9 @@ import {
   skillVersions,
   skillInvocations,
   skillFeedback,
+  skillCategories,
 } from "@claudiator/db/schema";
-import { sql, asc, desc, SQL } from "drizzle-orm";
+import { sql, asc, desc, eq, SQL } from "drizzle-orm";
 import { SkillCard } from "./skill-card";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -19,7 +20,7 @@ interface SkillGridProps {
 export async function SkillGrid({ category, sort, search }: SkillGridProps) {
   const conditions: SQL[] = [];
   if (category) {
-    conditions.push(sql`${skills.category} = ${category}`);
+    conditions.push(sql`${skillCategories.slug} = ${category}`);
   }
   if (search) {
     conditions.push(
@@ -39,7 +40,8 @@ export async function SkillGrid({ category, sort, search }: SkillGridProps) {
       slug: skills.slug,
       name: skills.name,
       description: skills.description,
-      category: skills.category,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
       currentVersion: sql<string | null>`(
         SELECT ${skillVersions.version}
         FROM ${skillVersions}
@@ -64,6 +66,7 @@ export async function SkillGrid({ category, sort, search }: SkillGridProps) {
       ), 0)::int`,
     })
     .from(skills)
+    .leftJoin(skillCategories, eq(skills.categoryId, skillCategories.id))
     .where(whereClause)
     .orderBy(
       sort === "usage"
@@ -95,7 +98,7 @@ export async function SkillGrid({ category, sort, search }: SkillGridProps) {
           slug={skill.slug}
           name={skill.name}
           description={skill.description}
-          category={skill.category}
+          category={skill.categoryDomain && skill.categoryFunction ? `${skill.categoryDomain}/${skill.categoryFunction}` : "uncategorized"}
           currentVersion={skill.currentVersion}
           totalInvocations={skill.totalInvocations}
           avgRating={skill.avgRating ? Number(skill.avgRating) : null}

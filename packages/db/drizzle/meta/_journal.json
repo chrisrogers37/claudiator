@@ -71,6 +71,13 @@
       "when": 1743292800000,
       "tag": "0010_rename_session_to_workflow",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "0011",
+      "when": 1743379200000,
+      "tag": "0011_drop_old_category_columns",
+      "breakpoints": true
     }
   ]
 }

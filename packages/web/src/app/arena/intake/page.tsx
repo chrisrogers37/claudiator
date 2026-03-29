@@ -1,6 +1,6 @@
 import { createDb } from "@claudiator/db/client";
-import { intakeCandidates } from "@claudiator/db/schema";
-import { desc } from "drizzle-orm";
+import { intakeCandidates, skillCategories } from "@claudiator/db/schema";
+import { desc, eq } from "drizzle-orm";
 import { IntakeActions } from "../components/intake-actions";
 import { CandidateSubmitForm } from "../components/candidate-submit-form";
 
@@ -8,8 +8,19 @@ export default async function IntakePage() {
   const db = createDb(process.env.DATABASE_URL!);
 
   const candidates = await db
-    .select()
+    .select({
+      id: intakeCandidates.id,
+      sourceType: intakeCandidates.sourceType,
+      sourceUrl: intakeCandidates.sourceUrl,
+      extractedPurpose: intakeCandidates.extractedPurpose,
+      fightScore: intakeCandidates.fightScore,
+      status: intakeCandidates.status,
+      createdAt: intakeCandidates.createdAt,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
+    })
     .from(intakeCandidates)
+    .leftJoin(skillCategories, eq(intakeCandidates.categoryId, skillCategories.id))
     .orderBy(desc(intakeCandidates.createdAt));
 
   return (
@@ -80,7 +91,7 @@ export default async function IntakePage() {
                     {c.extractedPurpose || "--"}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-400">
-                    {c.category || "--"}
+                    {c.categoryDomain && c.categoryFunction ? `${c.categoryDomain}/${c.categoryFunction}` : "--"}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-200">
                     {c.fightScore != null ? c.fightScore : "--"}

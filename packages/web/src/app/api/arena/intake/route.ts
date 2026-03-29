@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     conditions.push(eq(intakeCandidates.status, status as any));
   }
   if (category) {
-    conditions.push(eq(intakeCandidates.category, category));
+    conditions.push(eq(intakeCandidates.categoryId, category));
   }
 
   const items = await db

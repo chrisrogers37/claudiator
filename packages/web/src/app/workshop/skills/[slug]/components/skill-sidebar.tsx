@@ -12,7 +12,8 @@ interface SkillSidebarProps {
   slug: string;
   skill: {
     name: string;
-    category: string;
+    categoryDomain: string | null;
+    categoryFunction: string | null;
     createdAt: Date;
     updatedAt: Date;
   };
@@ -114,7 +115,7 @@ export async function SkillSidebar({ slug, skill }: SkillSidebarProps) {
           <div className="flex justify-between">
             <dt className="text-gray-600">Category</dt>
             <dd>
-              <Badge label={skill.category} />
+              <Badge label={skill.categoryDomain && skill.categoryFunction ? `${skill.categoryDomain}/${skill.categoryFunction}` : "uncategorized"} />
             </dd>
           </div>
           <div className="flex justify-between">
