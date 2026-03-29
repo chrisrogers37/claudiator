@@ -7,7 +7,7 @@ interface InstalledSkill {
   version: string;
 }
 
-function computeBumpType(
+export function computeBumpType(
   installed: string,
   latest: string
 ): "MAJOR" | "MINOR" | "PATCH" {

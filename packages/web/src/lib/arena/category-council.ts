@@ -60,7 +60,7 @@ async function fetchCategoriesWithExamples(db: Db): Promise<CategoryInfo[]> {
   return result;
 }
 
-function tallyVotes(votes: CouncilVote[]): {
+export function tallyVotes(votes: CouncilVote[]): {
   winner: "existing" | "new";
   existingSlug: string | null;
   newDomain: string;

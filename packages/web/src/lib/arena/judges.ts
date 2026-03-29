@@ -3,7 +3,7 @@ import { battleJudgments } from "@claudiator/db/schema";
 import { judgingPrompt, judgingUserPrompt } from "./prompts";
 import { callLlm } from "./llm";
 
-interface JudgmentResult {
+export interface JudgmentResult {
   winner: "champion" | "challenger" | "draw";
   scores: {
     champion: { accuracy: number; completeness: number; style: number; efficiency: number; total: number };
