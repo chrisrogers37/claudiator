@@ -16,10 +16,14 @@ CREATE TABLE "intake_candidates" (
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
   "updated_at" timestamp with time zone NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE INDEX "idx_intake_status" ON "intake_candidates" ("status");
+--> statement-breakpoint
 CREATE INDEX "idx_intake_category" ON "intake_candidates" ("category");
+--> statement-breakpoint
 CREATE INDEX "idx_intake_fight_score" ON "intake_candidates" ("fight_score");
+--> statement-breakpoint
 
 CREATE TABLE "battles" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -36,10 +40,14 @@ CREATE TABLE "battles" (
   "completed_at" timestamp with time zone,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE INDEX "idx_battles_status" ON "battles" ("status");
+--> statement-breakpoint
 CREATE INDEX "idx_battles_champion_skill" ON "battles" ("champion_skill_id");
+--> statement-breakpoint
 CREATE INDEX "idx_battles_challenger" ON "battles" ("challenger_id");
+--> statement-breakpoint
 
 CREATE TABLE "battle_scenarios" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,8 +59,10 @@ CREATE TABLE "battle_scenarios" (
   "difficulty" text NOT NULL,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE INDEX "idx_scenarios_battle" ON "battle_scenarios" ("battle_id");
+--> statement-breakpoint
 
 CREATE TABLE "battle_rounds" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -65,9 +75,12 @@ CREATE TABLE "battle_rounds" (
   "challenger_tokens" integer,
   "executed_at" timestamp with time zone NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE INDEX "idx_rounds_battle" ON "battle_rounds" ("battle_id");
+--> statement-breakpoint
 CREATE INDEX "idx_rounds_scenario" ON "battle_rounds" ("scenario_id");
+--> statement-breakpoint
 
 CREATE TABLE "battle_judgments" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -79,8 +92,10 @@ CREATE TABLE "battle_judgments" (
   "confidence" integer NOT NULL,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE INDEX "idx_judgments_round" ON "battle_judgments" ("round_id");
+--> statement-breakpoint
 
 CREATE TABLE "arena_rankings" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -95,6 +110,8 @@ CREATE TABLE "arena_rankings" (
   "last_battle_at" timestamp with time zone,
   "updated_at" timestamp with time zone NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE INDEX "idx_rankings_category" ON "arena_rankings" ("category");
+--> statement-breakpoint
 CREATE INDEX "idx_rankings_elo" ON "arena_rankings" ("elo_rating");

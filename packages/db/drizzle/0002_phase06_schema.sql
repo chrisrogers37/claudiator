@@ -12,8 +12,10 @@ CREATE TABLE source_configs (
   last_checked_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE INDEX idx_source_configs_active ON source_configs (is_active);
+--> statement-breakpoint
 
 -- 2. Source snapshots table
 CREATE TABLE source_snapshots (
@@ -23,8 +25,10 @@ CREATE TABLE source_snapshots (
   raw_content text NOT NULL,
   fetched_at timestamptz NOT NULL DEFAULT now()
 );
+--> statement-breakpoint
 
 CREATE INDEX idx_snapshots_source_fetched ON source_snapshots (source_config_id, fetched_at DESC);
+--> statement-breakpoint
 
 -- 3. Seed initial source configurations
 INSERT INTO source_configs (name, url, source_type, check_frequency, fetch_config) VALUES
