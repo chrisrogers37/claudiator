@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { createDb } from "@claudiator/db/client";
-import { skills, skillFeedback } from "@claudiator/db/schema";
+import { skills, skillFeedback, skillCategories } from "@claudiator/db/schema";
 import { sql, desc, asc, eq } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RatingStars } from "@/components/ui/rating-stars";
+import { formatCategoryLabel } from "@/lib/format-category";
 
 const db = createDb(process.env.DATABASE_URL!);
 
@@ -21,14 +22,16 @@ export default async function FeedbackOverviewPage({
     .select({
       slug: skills.slug,
       name: skills.name,
-      category: skills.category,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
       avgRating: sql<number>`AVG(${skillFeedback.rating})::numeric(3,1)`,
       feedbackCount: sql<number>`COUNT(${skillFeedback.id})::int`,
       latestFeedback: sql<Date>`MAX(${skillFeedback.createdAt})`,
     })
     .from(skills)
     .innerJoin(skillFeedback, eq(skillFeedback.skillId, skills.id))
-    .groupBy(skills.slug, skills.name, skills.category)
+    .leftJoin(skillCategories, eq(skills.categoryId, skillCategories.id))
+    .groupBy(skills.slug, skills.name, skillCategories.domain, skillCategories.function)
     .orderBy(
       sortOrder === "count"
         ? desc(sql`COUNT(${skillFeedback.id})`)
@@ -87,7 +90,7 @@ export default async function FeedbackOverviewPage({
                     <span className="font-mono text-sm text-cyan-400">
                       /{sf.name}
                     </span>
-                    <Badge label={sf.category} />
+                    <Badge label={formatCategoryLabel(sf.categoryDomain, sf.categoryFunction)} />
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-xs font-mono text-gray-600">

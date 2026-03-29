@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createDb } from "@claudiator/db/client";
-import { skills, skillVersions } from "@claudiator/db/schema";
+import { skills, skillVersions, skillCategories } from "@claudiator/db/schema";
 import { eq, and } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SkillEditor } from "./components/skill-editor";
@@ -16,8 +16,18 @@ export default async function SkillDetailPage({
   const { slug } = await params;
 
   const [skill] = await db
-    .select()
+    .select({
+      id: skills.id,
+      name: skills.name,
+      slug: skills.slug,
+      description: skills.description,
+      createdAt: skills.createdAt,
+      updatedAt: skills.updatedAt,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
+    })
     .from(skills)
+    .leftJoin(skillCategories, eq(skills.categoryId, skillCategories.id))
     .where(eq(skills.slug, slug))
     .limit(1);
 
@@ -50,7 +60,13 @@ export default async function SkillDetailPage({
         </main>
 
         <aside className="w-72 flex-shrink-0">
-          <SkillSidebar slug={slug} skill={skill} />
+          <SkillSidebar slug={slug} skill={{
+            name: skill.name,
+            categoryDomain: skill.categoryDomain,
+            categoryFunction: skill.categoryFunction,
+            createdAt: skill.createdAt,
+            updatedAt: skill.updatedAt,
+          }} />
         </aside>
       </div>
     </>

@@ -7,7 +7,7 @@ interface Champion {
   id: string;
   slug: string;
   name: string;
-  category: string;
+  category: string | null;
   versionId: string;
   version: string;
 }
@@ -92,7 +92,7 @@ export function NewBattleForm({
               <option value="">Select champion...</option>
               {champions.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.category}) — v{c.version}
+                  {c.name} ({c.category || "uncategorized"}) — v{c.version}
                 </option>
               ))}
             </select>

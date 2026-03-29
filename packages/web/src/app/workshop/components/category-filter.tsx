@@ -2,22 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
-const SKILL_CATEGORIES = [
-  "deployment",
-  "database",
-  "code-review",
-  "planning",
-  "design",
-  "workflow",
-  "utilities",
-  "configuration",
-] as const;
-
 interface CategoryFilterProps {
   activeCategory?: string;
+  categories: { slug: string; domain: string; function: string }[];
 }
 
-export function CategoryFilter({ activeCategory }: CategoryFilterProps) {
+export function CategoryFilter({ activeCategory, categories }: CategoryFilterProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -43,17 +33,17 @@ export function CategoryFilter({ activeCategory }: CategoryFilterProps) {
       >
         All Skills
       </button>
-      {SKILL_CATEGORIES.map((cat) => (
+      {categories.map((cat) => (
         <button
-          key={cat}
-          onClick={() => selectCategory(cat)}
+          key={cat.slug}
+          onClick={() => selectCategory(cat.slug)}
           className={`block w-full text-left px-3 py-2 rounded text-sm ${
-            activeCategory === cat
+            activeCategory === cat.slug
               ? "text-green-400 bg-green-400/5"
               : "text-gray-500 hover:text-gray-300"
           }`}
         >
-          {cat}
+          {cat.domain}/{cat.function}
         </button>
       ))}
     </nav>

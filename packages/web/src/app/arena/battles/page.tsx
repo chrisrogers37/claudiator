@@ -4,9 +4,11 @@ import {
   intakeCandidates,
   skills,
   skillVersions,
+  skillCategories,
 } from "@claudiator/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { NewBattleForm } from "../components/new-battle-form";
+import { formatCategoryLabel } from "@/lib/format-category";
 import { FightCard } from "../components/fight-card";
 
 export default async function BattlesPage() {
@@ -52,12 +54,13 @@ export default async function BattlesPage() {
   });
 
   // Champion skills (skills with a latest version) for the new battle form
-  const champions = await db
+  const championsRaw = await db
     .select({
       id: skills.id,
       slug: skills.slug,
       name: skills.name,
-      category: skills.category,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
       versionId: skillVersions.id,
       version: skillVersions.version,
     })
@@ -69,7 +72,13 @@ export default async function BattlesPage() {
         eq(skillVersions.isLatest, true)
       )
     )
+    .leftJoin(skillCategories, eq(skills.categoryId, skillCategories.id))
     .orderBy(skills.name);
+
+  const champions = championsRaw.map(({ categoryDomain, categoryFunction, ...rest }) => ({
+    ...rest,
+    category: formatCategoryLabel(categoryDomain, categoryFunction, null),
+  }));
 
   // Queued/scored candidates available for battle
   const rawCandidates = await db
@@ -78,11 +87,13 @@ export default async function BattlesPage() {
       sourceUrl: intakeCandidates.sourceUrl,
       extractedPurpose: intakeCandidates.extractedPurpose,
       rawContent: intakeCandidates.rawContent,
-      category: intakeCandidates.category,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
       fightScore: intakeCandidates.fightScore,
       status: intakeCandidates.status,
     })
     .from(intakeCandidates)
+    .leftJoin(skillCategories, eq(intakeCandidates.categoryId, skillCategories.id))
     .where(eq(intakeCandidates.status, "queued"))
     .orderBy(desc(intakeCandidates.fightScore));
 
@@ -92,7 +103,7 @@ export default async function BattlesPage() {
     return {
       id: c.id,
       name: nameMatch?.[1] || c.extractedPurpose?.slice(0, 40) || c.sourceUrl || c.id,
-      category: c.category,
+      category: formatCategoryLabel(c.categoryDomain, c.categoryFunction, null),
       fightScore: c.fightScore,
       sourceUrl: c.sourceUrl,
     };

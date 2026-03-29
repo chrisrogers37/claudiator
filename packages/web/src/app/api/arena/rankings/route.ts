@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDb } from "@claudiator/db/client";
-import { arenaRankings, skills } from "@claudiator/db/schema";
+import { arenaRankings, skills, skillCategories } from "@claudiator/db/schema";
 import { desc, eq } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
     .select({
       id: arenaRankings.id,
       skillId: arenaRankings.skillId,
-      category: arenaRankings.category,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
       wins: arenaRankings.wins,
       losses: arenaRankings.losses,
       draws: arenaRankings.draws,
@@ -31,10 +32,11 @@ export async function GET(request: NextRequest) {
       skillDescription: skills.description,
     })
     .from(arenaRankings)
-    .innerJoin(skills, eq(arenaRankings.skillId, skills.id));
+    .innerJoin(skills, eq(arenaRankings.skillId, skills.id))
+    .leftJoin(skillCategories, eq(arenaRankings.categoryId, skillCategories.id));
 
   if (category) {
-    query.where(eq(arenaRankings.category, category));
+    query.where(eq(arenaRankings.categoryId, category));
   }
 
   const items = await query.orderBy(desc(arenaRankings.eloRating)).limit(100);

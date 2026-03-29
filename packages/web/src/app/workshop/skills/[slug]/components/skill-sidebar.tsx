@@ -5,6 +5,7 @@ import { sql, eq } from "drizzle-orm";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RatingStars } from "@/components/ui/rating-stars";
+import { formatCategoryLabel } from "@/lib/format-category";
 
 const db = createDb(process.env.DATABASE_URL!);
 
@@ -12,7 +13,8 @@ interface SkillSidebarProps {
   slug: string;
   skill: {
     name: string;
-    category: string;
+    categoryDomain: string | null;
+    categoryFunction: string | null;
     createdAt: Date;
     updatedAt: Date;
   };
@@ -114,7 +116,7 @@ export async function SkillSidebar({ slug, skill }: SkillSidebarProps) {
           <div className="flex justify-between">
             <dt className="text-gray-600">Category</dt>
             <dd>
-              <Badge label={skill.category} />
+              <Badge label={formatCategoryLabel(skill.categoryDomain, skill.categoryFunction)} />
             </dd>
           </div>
           <div className="flex justify-between">

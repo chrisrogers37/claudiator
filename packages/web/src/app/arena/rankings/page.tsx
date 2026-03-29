@@ -1,5 +1,5 @@
 import { createDb } from "@claudiator/db/client";
-import { arenaRankings, skills } from "@claudiator/db/schema";
+import { arenaRankings, skills, skillCategories } from "@claudiator/db/schema";
 import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
 
@@ -10,7 +10,8 @@ export default async function RankingsPage() {
     .select({
       id: arenaRankings.id,
       skillId: arenaRankings.skillId,
-      category: arenaRankings.category,
+      categoryDomain: skillCategories.domain,
+      categoryFunction: skillCategories.function,
       wins: arenaRankings.wins,
       losses: arenaRankings.losses,
       draws: arenaRankings.draws,
@@ -23,6 +24,7 @@ export default async function RankingsPage() {
     })
     .from(arenaRankings)
     .innerJoin(skills, eq(arenaRankings.skillId, skills.id))
+    .leftJoin(skillCategories, eq(arenaRankings.categoryId, skillCategories.id))
     .orderBy(desc(arenaRankings.eloRating));
 
   return (

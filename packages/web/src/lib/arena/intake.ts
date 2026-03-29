@@ -37,7 +37,6 @@ export async function categorizeCandidate(
     .update(intakeCandidates)
     .set({
       extractedPurpose: council.purpose,
-      category: `${council.domain}/${council.function}`,
       categoryId: council.categoryId,
       matchedChampionSkillId: matchedSkillId,
       status: "categorized",

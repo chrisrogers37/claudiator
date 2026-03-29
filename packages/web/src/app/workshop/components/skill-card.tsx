@@ -14,17 +14,6 @@ interface SkillCardProps {
   feedbackCount: number;
 }
 
-const categoryVariant: Record<string, "green" | "amber" | "cyan" | "muted"> = {
-  deployment: "cyan",
-  database: "green",
-  "code-review": "amber",
-  planning: "cyan",
-  design: "amber",
-  workflow: "green",
-  utilities: "muted",
-  configuration: "muted",
-};
-
 export function SkillCard({
   slug,
   name,
@@ -54,7 +43,7 @@ export function SkillCard({
         <div className="flex items-center justify-between">
           <Badge
             label={category}
-            variant={categoryVariant[category] || "muted"}
+            variant="muted"
           />
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono text-gray-600">

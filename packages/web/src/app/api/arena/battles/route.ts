@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDb } from "@claudiator/db/client";
-import { battles, intakeCandidates, skills } from "@claudiator/db/schema";
+import { battles, intakeCandidates, skills, skillCategories } from "@claudiator/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { createBattle } from "@/lib/arena/matchmaker";
@@ -37,14 +37,16 @@ export async function GET(request: NextRequest) {
       championVersionId: battles.championVersionId,
       challengerSourceType: intakeCandidates.sourceType,
       challengerSourceUrl: intakeCandidates.sourceUrl,
-      challengerCategory: intakeCandidates.category,
+      challengerCategoryDomain: skillCategories.domain,
+      challengerCategoryFunction: skillCategories.function,
       challengerExtractedPurpose: intakeCandidates.extractedPurpose,
       championSkillName: skills.name,
       championSkillSlug: skills.slug,
     })
     .from(battles)
     .innerJoin(intakeCandidates, eq(battles.challengerId, intakeCandidates.id))
-    .innerJoin(skills, eq(battles.championSkillId, skills.id));
+    .innerJoin(skills, eq(battles.championSkillId, skills.id))
+    .leftJoin(skillCategories, eq(intakeCandidates.categoryId, skillCategories.id));
 
   if (status) {
     query.where(eq(battles.status, status as any));
