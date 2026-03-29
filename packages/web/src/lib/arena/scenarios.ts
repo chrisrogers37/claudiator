@@ -32,7 +32,6 @@ export async function generateScenarios(
 
   await emitPipelineEvent(db, "battle", battleId, "generating_scenarios");
 
-  // Resolve category label: prefer domain/function format from skillCategories
   let categoryLabel = "uncategorized";
   if (candidate.categoryId) {
     const [cat] = await db

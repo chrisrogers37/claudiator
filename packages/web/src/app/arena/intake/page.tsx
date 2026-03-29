@@ -3,6 +3,7 @@ import { intakeCandidates, skillCategories } from "@claudiator/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { IntakeActions } from "../components/intake-actions";
 import { CandidateSubmitForm } from "../components/candidate-submit-form";
+import { formatCategoryLabel } from "@/lib/format-category";
 
 export default async function IntakePage() {
   const db = createDb(process.env.DATABASE_URL!);
@@ -91,7 +92,7 @@ export default async function IntakePage() {
                     {c.extractedPurpose || "--"}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-400">
-                    {c.categoryDomain && c.categoryFunction ? `${c.categoryDomain}/${c.categoryFunction}` : "--"}
+                    {formatCategoryLabel(c.categoryDomain, c.categoryFunction, "--")}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-200">
                     {c.fightScore != null ? c.fightScore : "--"}

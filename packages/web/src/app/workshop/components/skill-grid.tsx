@@ -8,6 +8,7 @@ import {
 } from "@claudiator/db/schema";
 import { sql, asc, desc, eq, SQL } from "drizzle-orm";
 import { SkillCard } from "./skill-card";
+import { formatCategoryLabel } from "@/lib/format-category";
 
 const db = createDb(process.env.DATABASE_URL!);
 
@@ -98,7 +99,7 @@ export async function SkillGrid({ category, sort, search }: SkillGridProps) {
           slug={skill.slug}
           name={skill.name}
           description={skill.description}
-          category={skill.categoryDomain && skill.categoryFunction ? `${skill.categoryDomain}/${skill.categoryFunction}` : "uncategorized"}
+          category={formatCategoryLabel(skill.categoryDomain, skill.categoryFunction)}
           currentVersion={skill.currentVersion}
           totalInvocations={skill.totalInvocations}
           avgRating={skill.avgRating ? Number(skill.avgRating) : null}

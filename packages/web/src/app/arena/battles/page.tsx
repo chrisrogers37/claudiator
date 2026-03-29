@@ -8,6 +8,7 @@ import {
 } from "@claudiator/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { NewBattleForm } from "../components/new-battle-form";
+import { formatCategoryLabel } from "@/lib/format-category";
 import { FightCard } from "../components/fight-card";
 
 export default async function BattlesPage() {
@@ -74,9 +75,9 @@ export default async function BattlesPage() {
     .leftJoin(skillCategories, eq(skills.categoryId, skillCategories.id))
     .orderBy(skills.name);
 
-  const champions = championsRaw.map((c) => ({
-    ...c,
-    category: c.categoryDomain && c.categoryFunction ? `${c.categoryDomain}/${c.categoryFunction}` : null,
+  const champions = championsRaw.map(({ categoryDomain, categoryFunction, ...rest }) => ({
+    ...rest,
+    category: formatCategoryLabel(categoryDomain, categoryFunction, null),
   }));
 
   // Queued/scored candidates available for battle
@@ -102,7 +103,7 @@ export default async function BattlesPage() {
     return {
       id: c.id,
       name: nameMatch?.[1] || c.extractedPurpose?.slice(0, 40) || c.sourceUrl || c.id,
-      category: c.categoryDomain && c.categoryFunction ? `${c.categoryDomain}/${c.categoryFunction}` : null,
+      category: formatCategoryLabel(c.categoryDomain, c.categoryFunction, null),
       fightScore: c.fightScore,
       sourceUrl: c.sourceUrl,
     };

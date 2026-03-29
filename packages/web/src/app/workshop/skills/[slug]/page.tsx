@@ -15,7 +15,7 @@ export default async function SkillDetailPage({
 }) {
   const { slug } = await params;
 
-  const [skillRow] = await db
+  const [skill] = await db
     .select({
       id: skills.id,
       name: skills.name,
@@ -30,8 +30,6 @@ export default async function SkillDetailPage({
     .leftJoin(skillCategories, eq(skills.categoryId, skillCategories.id))
     .where(eq(skills.slug, slug))
     .limit(1);
-
-  const skill = skillRow;
 
   if (!skill) notFound();
 

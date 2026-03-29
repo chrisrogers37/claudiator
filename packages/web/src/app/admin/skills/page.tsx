@@ -3,6 +3,7 @@ import { createDb } from "@claudiator/db/client";
 import { skills, skillInvocations, skillFeedback, skillCategories } from "@claudiator/db/schema";
 import { sql, desc, asc, eq } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
+import { formatCategoryLabel } from "@/lib/format-category";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "../components/stat-card";
@@ -139,7 +140,7 @@ export default async function SkillAdoptionPage({
                     <span className="font-mono text-sm text-cyan-400">
                       /{skill.name}
                     </span>
-                    <Badge label={skill.categoryDomain && skill.categoryFunction ? `${skill.categoryDomain}/${skill.categoryFunction}` : "uncategorized"} />
+                    <Badge label={formatCategoryLabel(skill.categoryDomain, skill.categoryFunction)} />
                     {isDead && <Badge label="dead" variant="red" />}
                     {isProblem && <Badge label="low rating" variant="amber" />}
                   </div>

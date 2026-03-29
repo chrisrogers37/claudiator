@@ -6,6 +6,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RatingStars } from "@/components/ui/rating-stars";
+import { formatCategoryLabel } from "@/lib/format-category";
 
 const db = createDb(process.env.DATABASE_URL!);
 
@@ -89,7 +90,7 @@ export default async function FeedbackOverviewPage({
                     <span className="font-mono text-sm text-cyan-400">
                       /{sf.name}
                     </span>
-                    <Badge label={sf.categoryDomain && sf.categoryFunction ? `${sf.categoryDomain}/${sf.categoryFunction}` : "uncategorized"} />
+                    <Badge label={formatCategoryLabel(sf.categoryDomain, sf.categoryFunction)} />
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-xs font-mono text-gray-600">

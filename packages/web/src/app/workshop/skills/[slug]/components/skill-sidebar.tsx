@@ -5,6 +5,7 @@ import { sql, eq } from "drizzle-orm";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RatingStars } from "@/components/ui/rating-stars";
+import { formatCategoryLabel } from "@/lib/format-category";
 
 const db = createDb(process.env.DATABASE_URL!);
 
@@ -115,7 +116,7 @@ export async function SkillSidebar({ slug, skill }: SkillSidebarProps) {
           <div className="flex justify-between">
             <dt className="text-gray-600">Category</dt>
             <dd>
-              <Badge label={skill.categoryDomain && skill.categoryFunction ? `${skill.categoryDomain}/${skill.categoryFunction}` : "uncategorized"} />
+              <Badge label={formatCategoryLabel(skill.categoryDomain, skill.categoryFunction)} />
             </dd>
           </div>
           <div className="flex justify-between">
