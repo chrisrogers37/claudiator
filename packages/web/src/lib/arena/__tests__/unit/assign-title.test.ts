@@ -31,13 +31,10 @@ describe("assignTitle", () => {
     expect(assignTitle(2, 1, 0)).toBe("The Contender");
   });
 
-  it('returns "The Fallen" when losses > wins and 0 wins', () => {
+  it('returns "The Fallen" when losses > wins', () => {
     expect(assignTitle(0, 3, 0)).toBe("The Fallen");
-  });
-
-  it('returns "The Contender" over "The Fallen" when wins >= 1 (checked first)', () => {
-    // wins >= 1 is checked before losses > wins in the priority chain
-    expect(assignTitle(1, 3, 0)).toBe("The Contender");
+    expect(assignTitle(1, 3, 0)).toBe("The Fallen");
+    expect(assignTitle(2, 5, 0)).toBe("The Fallen");
   });
 
   it('returns "The Contender" when losses equal wins (fallthrough)', () => {
