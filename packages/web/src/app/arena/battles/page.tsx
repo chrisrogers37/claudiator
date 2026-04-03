@@ -6,55 +6,54 @@ import {
   skillVersions,
   skillCategories,
 } from "@claudiator/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql, count } from "drizzle-orm";
+import { extractChallengerName } from "@/lib/arena/extract-challenger-name";
 import { NewBattleForm } from "../components/new-battle-form";
 import { formatCategoryLabel } from "@/lib/format-category";
 import { FightCard } from "../components/fight-card";
+import { Pagination } from "../components/pagination";
 
-export default async function BattlesPage() {
+const PAGE_SIZE = 20;
+
+export default async function BattlesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam || "1", 10) || 1);
+  const offset = (page - 1) * PAGE_SIZE;
+
   const db = createDb(process.env.DATABASE_URL!);
 
-  // All battles with related data
-  const allBattles = await db
-    .select({
-      id: battles.id,
-      status: battles.status,
-      verdict: battles.verdict,
-      championScore: battles.championScore,
-      challengerScore: battles.challengerScore,
-      totalLlmCalls: battles.totalLlmCalls,
-      totalCostCents: battles.totalCostCents,
-      startedAt: battles.startedAt,
-      completedAt: battles.completedAt,
-      createdAt: battles.createdAt,
-      challengerPurpose: intakeCandidates.extractedPurpose,
-      challengerRawContent: intakeCandidates.rawContent,
-      challengerSourceUrl: intakeCandidates.sourceUrl,
-      championName: skills.name,
-      championSlug: skills.slug,
-    })
-    .from(battles)
-    .innerJoin(intakeCandidates, eq(battles.challengerId, intakeCandidates.id))
-    .innerJoin(skills, eq(battles.championSkillId, skills.id))
-    .orderBy(desc(battles.createdAt));
-
-  // Extract short names from YAML frontmatter for challengers
-  const battlesWithNames = allBattles.map((b) => {
-    const nameMatch = b.challengerRawContent.match(
-      /^name:\s*["']?(.+?)["']?\s*$/m
-    );
-    return {
-      ...b,
-      challengerName:
-        nameMatch?.[1] ||
-        b.challengerPurpose?.slice(0, 40) ||
-        b.challengerSourceUrl ||
-        "\u2014",
-    };
-  });
-
-  // Champion skills (skills with a latest version) for the new battle form
-  const championsRaw = await db
+  // Parallel queries: count, battles, champions, candidates
+  const [countResult, allBattles, championsRaw, rawCandidates] = await Promise.all([
+    db.select({ total: count() }).from(battles),
+    db
+      .select({
+        id: battles.id,
+        status: battles.status,
+        verdict: battles.verdict,
+        championScore: battles.championScore,
+        challengerScore: battles.challengerScore,
+        totalLlmCalls: battles.totalLlmCalls,
+        totalCostCents: battles.totalCostCents,
+        startedAt: battles.startedAt,
+        completedAt: battles.completedAt,
+        createdAt: battles.createdAt,
+        challengerPurpose: intakeCandidates.extractedPurpose,
+        challengerRawContent: intakeCandidates.rawContent,
+        challengerSourceUrl: intakeCandidates.sourceUrl,
+        championName: skills.name,
+        championSlug: skills.slug,
+      })
+      .from(battles)
+      .innerJoin(intakeCandidates, eq(battles.challengerId, intakeCandidates.id))
+      .innerJoin(skills, eq(battles.championSkillId, skills.id))
+      .orderBy(desc(battles.createdAt))
+      .limit(PAGE_SIZE)
+      .offset(offset),
+    db
     .select({
       id: skills.id,
       slug: skills.slug,
@@ -73,41 +72,44 @@ export default async function BattlesPage() {
       )
     )
     .leftJoin(skillCategories, eq(skills.categoryId, skillCategories.id))
-    .orderBy(skills.name);
+    .orderBy(skills.name),
+    db
+      .select({
+        id: intakeCandidates.id,
+        sourceUrl: intakeCandidates.sourceUrl,
+        extractedPurpose: intakeCandidates.extractedPurpose,
+        rawContent: intakeCandidates.rawContent,
+        categoryDomain: skillCategories.domain,
+        categoryFunction: skillCategories.function,
+        fightScore: intakeCandidates.fightScore,
+        status: intakeCandidates.status,
+      })
+      .from(intakeCandidates)
+      .leftJoin(skillCategories, eq(intakeCandidates.categoryId, skillCategories.id))
+      .where(eq(intakeCandidates.status, "queued"))
+      .orderBy(desc(intakeCandidates.fightScore)),
+  ]);
+
+  const [{ total }] = countResult;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const battlesWithNames = allBattles.map((b) => ({
+    ...b,
+    challengerName: extractChallengerName(b.challengerRawContent, b.challengerPurpose, b.challengerSourceUrl || "\u2014"),
+  }));
 
   const champions = championsRaw.map(({ categoryDomain, categoryFunction, ...rest }) => ({
     ...rest,
     category: formatCategoryLabel(categoryDomain, categoryFunction, null),
   }));
 
-  // Queued/scored candidates available for battle
-  const rawCandidates = await db
-    .select({
-      id: intakeCandidates.id,
-      sourceUrl: intakeCandidates.sourceUrl,
-      extractedPurpose: intakeCandidates.extractedPurpose,
-      rawContent: intakeCandidates.rawContent,
-      categoryDomain: skillCategories.domain,
-      categoryFunction: skillCategories.function,
-      fightScore: intakeCandidates.fightScore,
-      status: intakeCandidates.status,
-    })
-    .from(intakeCandidates)
-    .leftJoin(skillCategories, eq(intakeCandidates.categoryId, skillCategories.id))
-    .where(eq(intakeCandidates.status, "queued"))
-    .orderBy(desc(intakeCandidates.fightScore));
-
-  // Extract short name from YAML frontmatter
-  const candidates = rawCandidates.map((c) => {
-    const nameMatch = c.rawContent.match(/^name:\s*["']?(.+?)["']?\s*$/m);
-    return {
-      id: c.id,
-      name: nameMatch?.[1] || c.extractedPurpose?.slice(0, 40) || c.sourceUrl || c.id,
-      category: formatCategoryLabel(c.categoryDomain, c.categoryFunction, null),
-      fightScore: c.fightScore,
-      sourceUrl: c.sourceUrl,
-    };
-  });
+  const candidates = rawCandidates.map((c) => ({
+    id: c.id,
+    name: extractChallengerName(c.rawContent, c.extractedPurpose, c.sourceUrl || c.id),
+    category: formatCategoryLabel(c.categoryDomain, c.categoryFunction, null),
+    fightScore: c.fightScore,
+    sourceUrl: c.sourceUrl,
+  }));
 
   return (
     <>
@@ -128,20 +130,28 @@ export default async function BattlesPage() {
           No battles yet. Create one above or submit candidates via Intake.
         </p>
       ) : (
-        <div className="space-y-3">
-          {battlesWithNames.map((battle) => (
-            <FightCard
-              key={battle.id}
-              id={battle.id}
-              championName={battle.championName}
-              challengerName={battle.challengerName}
-              status={battle.status}
-              verdict={battle.verdict}
-              totalLlmCalls={battle.totalLlmCalls}
-              totalCostCents={battle.totalCostCents}
-            />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {battlesWithNames.map((battle) => (
+              <FightCard
+                key={battle.id}
+                id={battle.id}
+                championName={battle.championName}
+                challengerName={battle.challengerName}
+                status={battle.status}
+                verdict={battle.verdict}
+                totalLlmCalls={battle.totalLlmCalls}
+                totalCostCents={battle.totalCostCents}
+                backPath="/arena/battles"
+              />
+            ))}
+          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            basePath="/arena/battles"
+          />
+        </>
       )}
     </>
   );

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDb } from "@claudiator/db/client";
-import { skillCategories } from "@claudiator/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { skillCategories, skills } from "@claudiator/db/schema";
+import { desc, eq, sql } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);
 
@@ -20,16 +20,18 @@ export async function GET(request: NextRequest) {
       function: skillCategories.function,
       description: skillCategories.description,
       slug: skillCategories.slug,
-      skillCount: skillCategories.skillCount,
+      skillCount: sql<number>`count(${skills.id})::int`,
       createdAt: skillCategories.createdAt,
     })
-    .from(skillCategories);
+    .from(skillCategories)
+    .leftJoin(skills, eq(skills.categoryId, skillCategories.id))
+    .groupBy(skillCategories.id);
 
   if (domain) {
     query.where(eq(skillCategories.domain, domain));
   }
 
-  const items = await query.orderBy(desc(skillCategories.skillCount)).limit(100);
+  const items = await query.orderBy(desc(sql`count(${skills.id})`)).limit(100);
 
   return NextResponse.json(items);
 }

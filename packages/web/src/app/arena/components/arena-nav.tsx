@@ -4,11 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const tabs = [
-  { href: "/arena", label: "Overview", icon: "\u{1F6E1}", exact: true },
-  { href: "/arena/intake", label: "Intake", icon: "\u{1F4DC}" },
-  { href: "/arena/battles", label: "Battles", icon: "\u2694" },
-  { href: "/arena/rankings", label: "Rankings", icon: "\u{1F3C6}" },
-  { href: "/arena/categories", label: "Categories", icon: "\u{1F3F7}" },
+  { href: "/arena/intake", label: "Intake" },
+  { href: "/arena/battles", label: "Battles" },
+  { href: "/arena/leaderboard", label: "Leaderboard" },
 ];
 
 export function ArenaNav() {
@@ -20,9 +18,7 @@ export function ArenaNav() {
       <div className="relative max-w-5xl mx-auto px-6">
         <nav className="flex items-center gap-1">
           {tabs.map((tab) => {
-            const isActive = tab.exact
-              ? pathname === tab.href
-              : pathname.startsWith(tab.href);
+            const isActive = pathname.startsWith(tab.href);
             return (
               <Link
                 key={tab.href}
@@ -33,7 +29,6 @@ export function ArenaNav() {
                     : "border border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-800/50"
                 }`}
               >
-                <span className="mr-1.5">{tab.icon}</span>
                 {tab.label}
               </Link>
             );

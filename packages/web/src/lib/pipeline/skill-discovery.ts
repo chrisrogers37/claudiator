@@ -34,7 +34,8 @@ export function filterSkillFiles(tree: TreeEntry[]): TreeEntry[] {
 export async function discoverSkillsFromRepo(
   db: Db,
   repoUrl: string,
-  sourceConfigId: string
+  sourceConfigId: string,
+  limit?: number
 ): Promise<DiscoveryResult> {
   const result: DiscoveryResult = { discovered: 0, skipped: 0, errors: [] };
 
@@ -56,10 +57,11 @@ export async function discoverSkillsFromRepo(
   }
 
   const skillFiles = filterSkillFiles(tree);
+  const filesToProcess = limit ? skillFiles.slice(0, limit) : skillFiles;
 
-  console.log(`[discovery] Found ${skillFiles.length} SKILL.md files in ${owner}/${repo}`);
+  console.log(`[discovery] Found ${skillFiles.length} SKILL.md files in ${owner}/${repo}${limit ? ` (processing ${filesToProcess.length})` : ""}`);
 
-  for (const file of skillFiles) {
+  for (const file of filesToProcess) {
     const sourceUrl = `https://github.com/${owner}/${repo}/blob/HEAD/${file.path}`;
 
     // Deduplicate

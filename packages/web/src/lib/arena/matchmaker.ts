@@ -22,55 +22,60 @@ export async function findNextMatch(
   championSkillId: string;
   championVersionId: string;
 } | null> {
-  // Find highest-scored queued candidate
-  const [candidate] = await db
+  // Find queued candidates ordered by fight score
+  const candidates = await db
     .select()
     .from(intakeCandidates)
     .where(eq(intakeCandidates.status, "queued"))
     .orderBy(desc(intakeCandidates.fightScore))
-    .limit(1);
+    .limit(20);
 
-  if (!candidate) return null;
+  const versionCache = new Map<string, string>();
 
-  let championSkillId = candidate.matchedChampionSkillId;
+  for (const candidate of candidates) {
+    let championSkillId = candidate.matchedChampionSkillId;
 
-  // If no matched champion but candidate has a category, find the highest-ELO skill in that category
-  if (!championSkillId && candidate.categoryId) {
-    const [topRanked] = await db
-      .select({ skillId: arenaRankings.skillId })
-      .from(arenaRankings)
-      .innerJoin(skills, eq(skills.id, arenaRankings.skillId))
-      .where(eq(skills.categoryId, candidate.categoryId))
-      .orderBy(desc(arenaRankings.eloRating))
-      .limit(1);
+    // If no matched champion but candidate has a category, find the highest-ELO skill in that category
+    if (!championSkillId && candidate.categoryId) {
+      const [topRanked] = await db
+        .select({ skillId: arenaRankings.skillId })
+        .from(arenaRankings)
+        .innerJoin(skills, eq(skills.id, arenaRankings.skillId))
+        .where(eq(skills.categoryId, candidate.categoryId))
+        .orderBy(desc(arenaRankings.eloRating))
+        .limit(1);
 
-    if (!topRanked) {
-      // No existing skills in this category — skip candidate
-      return null;
+      if (topRanked) championSkillId = topRanked.skillId;
     }
-    championSkillId = topRanked.skillId;
+
+    if (!championSkillId) continue;
+
+    // Get the champion's latest version (cached — many candidates share the same champion)
+    let versionId = versionCache.get(championSkillId);
+    if (!versionId) {
+      const [version] = await db
+        .select({ id: skillVersions.id })
+        .from(skillVersions)
+        .where(
+          and(
+            eq(skillVersions.skillId, championSkillId),
+            eq(skillVersions.isLatest, true)
+          )
+        );
+
+      if (!version) continue;
+      versionId = version.id;
+      versionCache.set(championSkillId, versionId);
+    }
+
+    return {
+      candidateId: candidate.id,
+      championSkillId,
+      championVersionId: versionId,
+    };
   }
 
-  if (!championSkillId) return null;
-
-  // Get the champion's latest version
-  const [version] = await db
-    .select({ id: skillVersions.id })
-    .from(skillVersions)
-    .where(
-      and(
-        eq(skillVersions.skillId, championSkillId),
-        eq(skillVersions.isLatest, true)
-      )
-    );
-
-  if (!version) return null;
-
-  return {
-    candidateId: candidate.id,
-    championSkillId,
-    championVersionId: version.id,
-  };
+  return null;
 }
 
 export async function createBattle(

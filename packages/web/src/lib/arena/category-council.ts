@@ -36,28 +36,39 @@ interface CouncilResult {
 }
 
 async function fetchCategoriesWithExamples(db: Db): Promise<CategoryInfo[]> {
-  const categories = await db.select().from(skillCategories);
-
-  const result: CategoryInfo[] = [];
-  for (const cat of categories) {
-    const examples = await db
-      .select({ name: skills.name })
+  // Single query: categories with skill counts + example skill names (avoids N+1)
+  const [categories, allSkills] = await Promise.all([
+    db
+      .select({
+        id: skillCategories.id,
+        domain: skillCategories.domain,
+        function: skillCategories.function,
+        slug: skillCategories.slug,
+        description: skillCategories.description,
+        skillCount: sql<number>`count(${skills.id})::int`,
+      })
+      .from(skillCategories)
+      .leftJoin(skills, eq(skills.categoryId, skillCategories.id))
+      .groupBy(skillCategories.id),
+    db
+      .select({ categoryId: skills.categoryId, name: skills.name })
       .from(skills)
-      .where(eq(skills.categoryId, cat.id))
-      .limit(3);
+      .where(sql`${skills.categoryId} IS NOT NULL`),
+  ]);
 
-    result.push({
-      id: cat.id,
-      domain: cat.domain,
-      function: cat.function,
-      slug: cat.slug,
-      description: cat.description,
-      skillCount: cat.skillCount,
-      exampleSkills: examples.map((e) => e.name ?? "unnamed"),
-    });
+  // Group skills by category, take first 3 as examples
+  const examplesByCategory = new Map<string, string[]>();
+  for (const s of allSkills) {
+    if (!s.categoryId) continue;
+    const list = examplesByCategory.get(s.categoryId) ?? [];
+    if (list.length < 3) list.push(s.name ?? "unnamed");
+    examplesByCategory.set(s.categoryId, list);
   }
 
-  return result;
+  return categories.map((cat) => ({
+    ...cat,
+    exampleSkills: examplesByCategory.get(cat.id) ?? [],
+  }));
 }
 
 export function tallyVotes(votes: CouncilVote[]): {

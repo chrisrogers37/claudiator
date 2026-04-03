@@ -10,6 +10,7 @@ interface FightCardProps {
   totalLlmCalls?: number | null;
   totalCostCents?: number | null;
   compact?: boolean;
+  backPath?: string;
 }
 
 function verdictBorderClass(status: string, verdict?: string | null): string {
@@ -31,13 +32,14 @@ export function FightCard({
   totalLlmCalls,
   totalCostCents,
   compact = false,
+  backPath,
 }: FightCardProps) {
   const champWon = verdict === "champion_wins";
   const challWon = verdict === "challenger_wins";
 
   return (
     <Link
-      href={`/arena/${id}`}
+      href={`/arena/${id}${backPath ? `?from=${encodeURIComponent(backPath)}` : ""}`}
       className={`block rounded-lg border bg-[#161b22] transition-all hover:border-yellow-500/30 hover:shadow-[0_0_12px_rgba(234,179,8,0.06)] ${verdictBorderClass(status, verdict)}`}
     >
       <div className={`${compact ? "p-3" : "p-4"}`}>

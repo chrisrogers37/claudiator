@@ -4,14 +4,22 @@ import Link from "next/link";
 import { BattleStatusBadge } from "../components/battle-status-badge";
 import { BattleExecuteButton } from "../components/battle-execute-button";
 import { JudgeCard } from "../components/judge-card";
+import { extractChallengerName } from "@/lib/arena/extract-challenger-name";
 import { getBattleDetail } from "@/lib/arena/battle-queries";
 
 export default async function BattleDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ battleId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { battleId } = await params;
+  const { from: rawFrom } = await searchParams;
+  // Validate back-link to prevent open redirect
+  const from = rawFrom?.startsWith("/arena") || rawFrom?.startsWith("/workshop")
+    ? rawFrom
+    : undefined;
   const db = createDb(process.env.DATABASE_URL!);
 
   const result = await getBattleDetail(db, battleId);
@@ -20,13 +28,11 @@ export default async function BattleDetailPage({
   const battle = result;
 
   // Extract short name from YAML frontmatter
-  const challengerNameMatch = battle.challengerRawContent.match(
-    /^name:\s*["']?(.+?)["']?\s*$/m
+  const challengerName = extractChallengerName(
+    battle.challengerRawContent,
+    battle.challengerExtractedPurpose,
+    battle.challengerSourceType
   );
-  const challengerName =
-    challengerNameMatch?.[1] ||
-    battle.challengerExtractedPurpose?.slice(0, 40) ||
-    battle.challengerSourceType;
 
   // Build maps from the nested data
   const scenarios = battle.scenarios;
@@ -68,10 +74,15 @@ export default async function BattleDetailPage({
       {/* Back link */}
       <div className="mb-6">
         <Link
-          href="/arena"
+          href={from || "/arena"}
           className="font-mono text-xs text-gray-500 hover:text-gray-300 transition-colors"
         >
-          &larr; Back to Arena
+          &larr;{" "}
+          {from?.startsWith("/arena/categories")
+            ? "Back to Category"
+            : from === "/arena/battles"
+              ? "Back to Battles"
+              : "Back to Arena"}
         </Link>
       </div>
 
@@ -101,7 +112,7 @@ export default async function BattleDetailPage({
               <p className="font-mono text-lg text-orange-400 truncate pl-3">
                 {challengerName}
               </p>
-              {battle.challengerExtractedPurpose && challengerNameMatch && (
+              {battle.challengerExtractedPurpose && challengerName !== battle.challengerExtractedPurpose.slice(0, 40) && (
                 <p className="font-mono text-xs text-gray-500 mt-1 pl-3 truncate">
                   {battle.challengerExtractedPurpose}
                 </p>
