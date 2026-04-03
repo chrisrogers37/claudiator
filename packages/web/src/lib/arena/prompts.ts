@@ -118,6 +118,7 @@ CRITICAL RULES:
 - The project context describes the codebase state, NOT prior skill outputs
 - The user prompt should trigger the skill's core functionality
 - Vary complexity through project size and context, not by changing what the skill does
+- The project context must describe a PLAUSIBLE SYSTEM that the skill will act on — realistic code, git state, active work. The skill's job is to PRODUCE its outputs given this system. NEVER pre-populate the project context with files or artifacts that the skill itself is expected to create. For example: if the skill creates HANDOFF.md, the project context must NOT mention any existing handoff files.
 
 PROJECT CONTEXT MUST BE RICH AND DETAILED — simulate a real working session:
 - Include a realistic file tree (5-15 files) with paths

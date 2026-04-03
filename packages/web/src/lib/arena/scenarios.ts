@@ -12,6 +12,34 @@ interface GeneratedScenario {
   difficulty: "easy" | "medium" | "hard";
 }
 
+// Patterns that indicate the scenario generator fabricated pre-existing skill artifacts.
+// These should never appear in projectContext — each skill execution starts clean.
+const ARTIFACT_PATTERNS = [
+  /\b(?:a |the |existing |previous |prior |old )?handoff[\s_-]*(?:file|doc|note|record|log)s?\b(?:\s+exists?|\s+(?:is |are )?(?:present|available|found)|\s+from\b|\s+with\b)?/gi,
+  /\b(?:a |the |existing |previous |prior )?session[\s_-]*(?:file|note|context|state|log|record)s?\b(?:\s+exists?|\s+(?:is |are )?(?:present|available|found)|\s+from\b|\s+with\b)?/gi,
+  /\bprevious\s+session(?:s)?\s+(?:include|contain|have|left|ended|ended\s+with)\b/gi,
+  /\bmultiple\s+handoff\s+files?\b/gi,
+  /\bprior\s+(?:skill\s+)?outputs?\b/gi,
+  /\bpre-existing\s+(?:skill\s+)?artifacts?\b/gi,
+];
+
+/**
+ * Remove sentences from projectContext that reference pre-existing skill artifacts.
+ * This is a structural guarantee that scenarios start clean, regardless of what the
+ * LLM generates.
+ */
+function sanitizeProjectContext(context: string): string {
+  // Split into sentences, filter out contaminated ones, rejoin
+  const sentences = context.split(/(?<=\.)\s+/);
+  const clean = sentences.filter((sentence) =>
+    !ARTIFACT_PATTERNS.some((pattern) => {
+      pattern.lastIndex = 0; // reset stateful regex
+      return pattern.test(sentence);
+    })
+  );
+  return clean.join(" ");
+}
+
 export async function generateScenarios(
   db: Db,
   battleId: string
@@ -68,6 +96,13 @@ export async function generateScenarios(
 
   if (scenarios.length === 0) {
     throw new Error("LLM returned zero scenarios");
+  }
+
+  // Structural isolation: strip any fabricated skill artifacts from projectContext.
+  // The LLM sometimes generates scenarios with pre-existing outputs from the skill
+  // under test (e.g., "a handoff file exists"), which contaminates both executions.
+  for (const scenario of scenarios) {
+    scenario.projectContext = sanitizeProjectContext(scenario.projectContext);
   }
 
   const inserted = await db
