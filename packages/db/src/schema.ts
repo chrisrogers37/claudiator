@@ -451,6 +451,7 @@ export const battles = pgTable(
     verdict: text("verdict", {
       enum: ["champion_wins", "challenger_wins", "draw"],
     }),
+    verdictSummary: text("verdict_summary"),
     championScore: real("champion_score"),
     challengerScore: real("challenger_score"),
     config: jsonb("config").$type<{
@@ -599,6 +600,7 @@ export const arenaLlmCalls = pgTable(
         "judge",
         "evolve",
         "category_council",
+        "verdict_synthesis",
       ],
     }).notNull(),
     model: text("model").notNull(),

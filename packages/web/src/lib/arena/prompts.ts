@@ -235,6 +235,43 @@ ${championOutput.slice(0, 20_000)}
 ${challengerOutput.slice(0, 20_000)}`;
 }
 
+export function verdictSynthesisPrompt(
+  rubric: ScoringRubric
+): { system: string } {
+  return {
+    system: `You are a battle analyst for Claudiator's skill arena. After all judges have voted, you synthesize their individual judgments into a clear, concise narrative.
+
+Your summary should:
+1. State the verdict and margin (e.g., "The challenger won 4-1 with an average score advantage of 12 points")
+2. Explain WHAT the winner did better, citing specific scoring dimensions: ${rubric.dimensions.map(d => d.label).join(', ')}
+3. Note WHERE the loser fell short, with concrete examples from judge reasoning
+4. Briefly describe what a "perfect" skill would do in this category
+
+Keep it to 2-3 short paragraphs. Be specific -- reference actual judge observations, not generic praise.
+
+Output plain text, not JSON.`,
+  };
+}
+
+export function verdictSynthesisUserPrompt(
+  verdict: string,
+  championName: string,
+  challengerName: string,
+  judgmentSummaries: string[]
+): string {
+  return `## Verdict
+${verdict}
+
+## Champion
+${championName}
+
+## Challenger
+${challengerName}
+
+## Individual Judge Assessments
+${judgmentSummaries.map((s, i) => `### Judge ${i + 1}\n${s}`).join('\n\n')}`;
+}
+
 export function evolutionPrompt(
   championContent: string,
   challengerContent: string,

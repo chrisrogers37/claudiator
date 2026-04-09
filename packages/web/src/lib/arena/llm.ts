@@ -11,7 +11,8 @@ export type ArenaLlmCallType =
   | "skill_exec_challenger"
   | "judge"
   | "evolve"
-  | "category_council";
+  | "category_council"
+  | "verdict_synthesis";
 
 interface CallLlmOptions {
   db: Db;

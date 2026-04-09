@@ -4,6 +4,7 @@ import {
   battleScenarios,
   battleRounds,
   intakeCandidates,
+  skills,
   skillVersions,
   skillCategories,
   arenaLlmCalls,
@@ -14,7 +15,8 @@ import { judgeRound, aggregateJudgments } from "./judges";
 import { updateRankings } from "./rankings";
 import { callLlm } from "./llm";
 import { emitPipelineEvent } from "./pipeline-events";
-import { skillExecutionPrompt } from "./prompts";
+import { skillExecutionPrompt, verdictSynthesisPrompt, verdictSynthesisUserPrompt } from "./prompts";
+import { extractChallengerName } from "./extract-challenger-name";
 import { DEFAULT_RUBRIC, type ScoringRubric } from "./types";
 
 export async function executeBattle(db: Db, battleId: string): Promise<void> {
@@ -171,6 +173,54 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
     // Step 4: Aggregate and determine verdict
     const { verdict, championScore, challengerScore } = aggregateJudgments(allJudgments);
 
+    // Step 5: Generate verdict synthesis
+    let verdictSummary: string | null = null;
+    try {
+      const [championSkill] = await db
+        .select({ name: skills.name })
+        .from(skills)
+        .where(eq(skills.id, battle.championSkillId));
+
+      const [candidateRecord] = await db
+        .select({
+          rawContent: intakeCandidates.rawContent,
+          extractedPurpose: intakeCandidates.extractedPurpose,
+          sourceType: intakeCandidates.sourceType,
+        })
+        .from(intakeCandidates)
+        .where(eq(intakeCandidates.id, battle.challengerId));
+
+      const challengerName = extractChallengerName(
+        candidateRecord?.rawContent,
+        candidateRecord?.extractedPurpose
+      );
+
+      const judgmentSummaries = allJudgments.map(j =>
+        `Winner: ${j.winner} | Confidence: ${j.confidence}% | Scores: champion=${j.scores.champion.total}, challenger=${j.scores.challenger.total}\nReasoning: ${j.reasoning}`
+      );
+
+      const synthPrompt = verdictSynthesisPrompt(rubric);
+      const { text: synthText } = await callLlm({
+        db,
+        model: "claude-haiku-4-5-20251001",
+        system: synthPrompt.system,
+        prompt: verdictSynthesisUserPrompt(
+          verdict,
+          championSkill?.name ?? "Champion",
+          challengerName,
+          judgmentSummaries
+        ),
+        maxTokens: 1024,
+        callType: "verdict_synthesis",
+        battleId,
+      });
+
+      verdictSummary = synthText;
+    } catch (err) {
+      console.error(`[arena] Verdict synthesis failed for battle ${battleId}:`, err);
+      // Non-fatal — battle result is still valid without synthesis
+    }
+
     // Aggregate LLM usage for this battle
     const [llmAggregates] = await db
       .select({
@@ -190,6 +240,7 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
         .set({
           status: "complete",
           verdict,
+          verdictSummary,
           championScore,
           challengerScore,
           totalLlmCalls: llmAggregates?.totalCalls ?? null,
