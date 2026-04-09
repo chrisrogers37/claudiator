@@ -3,13 +3,24 @@ import {
   skillCategories,
   skills,
   arenaRankings,
+  arenaEloHistory,
   battles,
   intakeCandidates,
 } from "@claudiator/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, asc, sql } from "drizzle-orm";
 import { extractChallengerName } from "@/lib/arena/extract-challenger-name";
 import { FightCard } from "../components/fight-card";
+import { EloSparkline } from "../components/elo-sparkline";
 import Link from "next/link";
+
+function formatRelativeDate(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
 
 export default async function LeaderboardPage({
   searchParams,
@@ -20,7 +31,7 @@ export default async function LeaderboardPage({
   const db = createDb(process.env.DATABASE_URL!);
 
   // ── Parallel queries: categories, rankings, recent battles ──────────────
-  const [categories, rankings, recentBattles] = await Promise.all([
+  const [categories, rankings, recentBattles, eloHistory] = await Promise.all([
     db
       .select({
         id: skillCategories.id,
@@ -46,6 +57,7 @@ export default async function LeaderboardPage({
         winRate: arenaRankings.winRate,
         eloRating: arenaRankings.eloRating,
         title: arenaRankings.title,
+        lastBattleAt: arenaRankings.lastBattleAt,
       })
       .from(arenaRankings)
       .innerJoin(skills, eq(arenaRankings.skillId, skills.id))
@@ -66,7 +78,24 @@ export default async function LeaderboardPage({
       .innerJoin(intakeCandidates, eq(battles.challengerId, intakeCandidates.id))
       .orderBy(desc(battles.createdAt))
       .limit(30),
+    db
+      .select({
+        skillId: arenaEloHistory.skillId,
+        eloAfter: arenaEloHistory.eloAfter,
+        eloChange: arenaEloHistory.eloChange,
+        outcome: arenaEloHistory.outcome,
+      })
+      .from(arenaEloHistory)
+      .orderBy(asc(arenaEloHistory.createdAt)),
   ]);
+
+  // ── Group ELO history by skill ───────────────────────────────────────────
+  const eloHistoryBySkill = new Map<string, typeof eloHistory>();
+  for (const entry of eloHistory) {
+    const list = eloHistoryBySkill.get(entry.skillId) ?? [];
+    list.push(entry);
+    eloHistoryBySkill.set(entry.skillId, list);
+  }
 
   // ── Group data in JS ────────────────────────────────────────────────────
 
@@ -221,7 +250,7 @@ export default async function LeaderboardPage({
                       <table className="w-full min-w-[500px]">
                         <thead>
                           <tr className="border-b border-gray-800">
-                            {["#", "Skill", "Title", "ELO", "W/L/D", "Win %"].map(
+                            {["#", "Skill", "Title", "ELO", "Trend", "W/L/D", "Win %", ""].map(
                               (h) => (
                                 <th
                                   key={h}
@@ -263,12 +292,20 @@ export default async function LeaderboardPage({
                                       </span>
                                     )}
                                   </div>
+                                  {r.lastBattleAt && (
+                                    <span className="font-mono text-[10px] text-gray-600 block">
+                                      {formatRelativeDate(r.lastBattleAt)}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-3 py-2 font-mono text-xs text-gray-400">
                                   {r.title || "--"}
                                 </td>
                                 <td className="px-3 py-2 font-mono text-xs text-gray-200">
                                   {Math.round(r.eloRating)}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <EloSparkline history={eloHistoryBySkill.get(r.skillId) ?? []} />
                                 </td>
                                 <td className="px-3 py-2 font-mono text-xs">
                                   <span className="text-green-400">
@@ -287,6 +324,14 @@ export default async function LeaderboardPage({
                                   {totalGames > 0
                                     ? `${(r.winRate * 100).toFixed(0)}%`
                                     : "--"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Link
+                                    href={`/arena/battles?skill=${r.skillId}`}
+                                    className="font-mono text-[10px] text-gray-600 hover:text-cyan-400 transition-colors"
+                                  >
+                                    battles
+                                  </Link>
                                 </td>
                               </tr>
                             );

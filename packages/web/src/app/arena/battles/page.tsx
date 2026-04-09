@@ -6,7 +6,8 @@ import {
   skillVersions,
   skillCategories,
 } from "@claudiator/db/schema";
-import { eq, desc, and, sql, count } from "drizzle-orm";
+import { eq, desc, and, sql, count, type SQL } from "drizzle-orm";
+import Link from "next/link";
 import { extractChallengerName } from "@/lib/arena/extract-challenger-name";
 import { NewBattleForm } from "../components/new-battle-form";
 import { formatCategoryLabel } from "@/lib/format-category";
@@ -18,17 +19,24 @@ const PAGE_SIZE = 20;
 export default async function BattlesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; skill?: string }>;
 }) {
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, skill: skillParam } = await searchParams;
   const page = Math.max(1, parseInt(pageParam || "1", 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
   const db = createDb(process.env.DATABASE_URL!);
 
+  // Build filter conditions
+  const battleFilter: SQL | undefined = skillParam
+    ? eq(battles.championSkillId, skillParam)
+    : undefined;
+
   // Parallel queries: count, battles, champions, candidates
   const [countResult, allBattles, championsRaw, rawCandidates] = await Promise.all([
-    db.select({ total: count() }).from(battles),
+    battleFilter
+      ? db.select({ total: count() }).from(battles).where(battleFilter)
+      : db.select({ total: count() }).from(battles),
     db
       .select({
         id: battles.id,
@@ -50,6 +58,7 @@ export default async function BattlesPage({
       .from(battles)
       .innerJoin(intakeCandidates, eq(battles.challengerId, intakeCandidates.id))
       .innerJoin(skills, eq(battles.championSkillId, skills.id))
+      .where(battleFilter)
       .orderBy(desc(battles.createdAt))
       .limit(PAGE_SIZE)
       .offset(offset),
@@ -124,6 +133,17 @@ export default async function BattlesPage({
       <h2 className="font-mono text-sm text-gray-400 uppercase tracking-wider mb-3 mt-8">
         All Battles
       </h2>
+
+      {skillParam && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="font-mono text-xs text-gray-500">
+            Filtered by skill
+          </span>
+          <Link href="/arena/battles" className="font-mono text-xs text-cyan-400 hover:underline">
+            clear
+          </Link>
+        </div>
+      )}
 
       {battlesWithNames.length === 0 ? (
         <p className="font-mono text-sm text-gray-500">
