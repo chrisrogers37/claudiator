@@ -1,5 +1,7 @@
 // Centralized LLM prompt templates for the Arena system
 
+import type { ScoringRubric } from "./types";
+
 interface CategoryInfo {
   slug: string;
   domain: string;
@@ -7,6 +9,7 @@ interface CategoryInfo {
   description: string | null;
   skillCount: number;
   exampleSkills: string[];
+  scoringRubric?: unknown;
 }
 
 export function categoryCouncilPrompt(
@@ -16,8 +19,10 @@ export function categoryCouncilPrompt(
   const categoryList = existingCategories
     .sort((a, b) => b.skillCount - a.skillCount)
     .map(
-      (c) =>
-        `  - ${c.slug} (${c.domain}/${c.function}): ${c.description ?? "No description"} [${c.skillCount} skill${c.skillCount !== 1 ? "s" : ""}${c.exampleSkills.length > 0 ? `, e.g. ${c.exampleSkills.join(", ")}` : ""}]`
+      (c) => {
+        const rubricNote = c.scoringRubric ? " [HAS RUBRIC]" : "";
+        return `  - ${c.slug} (${c.domain}/${c.function}): ${c.description ?? "No description"} [${c.skillCount} skill${c.skillCount !== 1 ? "s" : ""}${c.exampleSkills.length > 0 ? `, e.g. ${c.exampleSkills.join(", ")}` : ""}]${rubricNote}`;
+      }
     )
     .join("\n");
 
@@ -29,6 +34,8 @@ Your job: classify a new skill into the most appropriate EXISTING category, or s
 BIAS TOWARD EXISTING CATEGORIES. Ask yourself: "Would a user looking for this skill's functionality also consider the skills already in category X?" If yes, it belongs in that category.
 
 Only suggest a new category when the skill serves a genuinely different purpose that no existing category covers. Two skills that accomplish the same goal in slightly different ways belong in the SAME category — that is what makes battles meaningful.
+
+Categories marked [HAS RUBRIC] have been explicitly defined with custom scoring criteria. Prefer these categories when the skill matches — they represent well-defined skill domains.
 
 Existing categories:
 ${categoryList || "  (none yet)"}
@@ -106,10 +113,18 @@ ${championContent.slice(0, 10_000)}`,
 
 export function scenarioGenerationPrompt(
   skillPurpose: string,
-  category: string
+  category: string,
+  rubric: ScoringRubric
 ): { system: string; user: string } {
+  const rubricSection = `
+SCORING DIMENSIONS FOR THIS CATEGORY:
+${rubric.dimensions.map(d => `- ${d.label}: ${d.description}`).join('\n')}
+
+Design scenarios that allow judges to meaningfully differentiate on these dimensions. The project context and user prompt should create situations where these specific dimensions can be evaluated.`;
+
   return {
     system: `You are a scenario designer for Claudiator's battle arena. Generate realistic test scenarios for evaluating Claude Code skills.
+${rubricSection}
 
 CRITICAL RULES:
 - Every scenario MUST test the skill's PRIMARY function as described in the purpose
@@ -178,21 +193,21 @@ ${scenario.userPrompt}`,
   };
 }
 
-export function judgingPrompt(): string {
+export function judgingPrompt(rubric: ScoringRubric): string {
+  const dimensionList = rubric.dimensions.map(d => `- ${d.key}: ${d.description}`).join('\n');
+  const scoreFields = rubric.dimensions.map(d => `"${d.key}": <0-${d.maxScore}>`).join(', ');
+
   return `You are a judge in Claudiator's battle arena. You evaluate two skill outputs for the same scenario and determine which one is better.
 
-Score each output on 4 dimensions (0-25 each, total 0-100):
-- accuracy: Correctness and relevance of the response
-- completeness: How thoroughly the scenario is addressed
-- style: Quality of formatting, communication, and user experience
-- efficiency: Conciseness, avoiding unnecessary steps
+Score each output on ${rubric.dimensions.length} dimensions (0-${rubric.dimensions[0].maxScore} each, total 0-100):
+${dimensionList}
 
 Output ONLY valid JSON:
 {
   "winner": "champion" | "challenger" | "draw",
   "scores": {
-    "champion": { "accuracy": <0-25>, "completeness": <0-25>, "style": <0-25>, "efficiency": <0-25>, "total": <0-100> },
-    "challenger": { "accuracy": <0-25>, "completeness": <0-25>, "style": <0-25>, "efficiency": <0-25>, "total": <0-100> }
+    "champion": { ${scoreFields}, "total": <0-100> },
+    "challenger": { ${scoreFields}, "total": <0-100> }
   },
   "reasoning": "Brief explanation of why you chose the winner",
   "confidence": <0-100>
@@ -214,10 +229,10 @@ ${scenario.projectContext}
 ${scenario.userPrompt}
 
 ## Champion Output
-${championOutput.slice(0, 8_000)}
+${championOutput.slice(0, 20_000)}
 
 ## Challenger Output
-${challengerOutput.slice(0, 8_000)}`;
+${challengerOutput.slice(0, 20_000)}`;
 }
 
 export function evolutionPrompt(

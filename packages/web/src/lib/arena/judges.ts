@@ -2,12 +2,13 @@ import type { Db } from "@claudiator/db/client";
 import { battleJudgments } from "@claudiator/db/schema";
 import { judgingPrompt, judgingUserPrompt } from "./prompts";
 import { callLlm } from "./llm";
+import type { ScoringRubric } from "./types";
 
 export interface JudgmentResult {
   winner: "champion" | "challenger" | "draw";
   scores: {
-    champion: { accuracy: number; completeness: number; style: number; efficiency: number; total: number };
-    challenger: { accuracy: number; completeness: number; style: number; efficiency: number; total: number };
+    champion: Record<string, number> & { total: number };
+    challenger: Record<string, number> & { total: number };
   };
   reasoning: string;
   confidence: number;
@@ -26,14 +27,15 @@ export async function judgeRound(
   scenario: ScenarioInfo,
   championOutput: string,
   challengerOutput: string,
-  battleId: string
+  battleId: string,
+  rubric: ScoringRubric
 ): Promise<JudgmentResult> {
   const model = "claude-haiku-4-5-20251001";
 
   const { text, usage, latencyMs } = await callLlm({
     db,
     model,
-    system: judgingPrompt(),
+    system: judgingPrompt(rubric),
     prompt: judgingUserPrompt(scenario, championOutput, challengerOutput),
     maxTokens: 1024,
     callType: "judge",
@@ -47,12 +49,14 @@ export async function judgeRound(
     result = JSON.parse(text);
   } catch {
     console.error(`[arena] Failed to parse judgment for round ${roundId}, judge ${judgeIndex}`);
+    const fallbackScores: Record<string, number> & { total: number } = { total: 0 };
+    for (const d of rubric.dimensions) {
+      fallbackScores[d.key] = Math.floor(d.maxScore / 2);
+    }
+    fallbackScores.total = rubric.dimensions.length * Math.floor(rubric.dimensions[0].maxScore / 2);
     result = {
       winner: "draw",
-      scores: {
-        champion: { accuracy: 12, completeness: 12, style: 12, efficiency: 12, total: 48 },
-        challenger: { accuracy: 12, completeness: 12, style: 12, efficiency: 12, total: 48 },
-      },
+      scores: { champion: { ...fallbackScores }, challenger: { ...fallbackScores } },
       reasoning: "Failed to parse judge response — defaulting to draw",
       confidence: 0,
     };

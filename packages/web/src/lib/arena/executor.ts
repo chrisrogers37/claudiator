@@ -5,6 +5,7 @@ import {
   battleRounds,
   intakeCandidates,
   skillVersions,
+  skillCategories,
   arenaLlmCalls,
 } from "@claudiator/db/schema";
 import { eq, sql, and } from "drizzle-orm";
@@ -14,6 +15,7 @@ import { updateRankings } from "./rankings";
 import { callLlm } from "./llm";
 import { emitPipelineEvent } from "./pipeline-events";
 import { skillExecutionPrompt } from "./prompts";
+import { DEFAULT_RUBRIC, type ScoringRubric } from "./types";
 
 export async function executeBattle(db: Db, battleId: string): Promise<void> {
   // Atomic CAS: only claim the battle if it's still pending
@@ -45,12 +47,25 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
       .where(eq(skillVersions.id, battle.championVersionId));
 
     const [candidate] = await db
-      .select({ rawContent: intakeCandidates.rawContent })
+      .select({
+        rawContent: intakeCandidates.rawContent,
+        categoryId: intakeCandidates.categoryId,
+      })
       .from(intakeCandidates)
       .where(eq(intakeCandidates.id, battle.challengerId));
 
     if (!championVersion || !candidate) {
       throw new Error("Missing champion version or candidate content");
+    }
+
+    // Fetch category rubric for domain-aware judging
+    let rubric: ScoringRubric = DEFAULT_RUBRIC;
+    if (candidate.categoryId) {
+      const [cat] = await db
+        .select({ scoringRubric: skillCategories.scoringRubric })
+        .from(skillCategories)
+        .where(eq(skillCategories.id, candidate.categoryId));
+      if (cat?.scoringRubric) rubric = cat.scoringRubric as ScoringRubric;
     }
 
     // Step 1: Generate scenarios
@@ -143,7 +158,7 @@ export async function executeBattle(db: Db, battleId: string): Promise<void> {
             description: scenario.description,
             projectContext: scenario.projectContext,
             userPrompt: scenario.userPrompt,
-          }, championResult.text, challengerResult.text, battleId)
+          }, championResult.text, challengerResult.text, battleId, rubric)
         );
 
         const roundJudgments = await Promise.all(judgePromises);
