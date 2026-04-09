@@ -64,6 +64,7 @@ export const skillCategories = pgTable(
     description: text("description"),
     slug: text("slug").notNull().unique(),
     skillCount: integer("skill_count").notNull().default(0),
+    scoringRubric: jsonb("scoring_rubric"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -450,6 +451,7 @@ export const battles = pgTable(
     verdict: text("verdict", {
       enum: ["champion_wins", "challenger_wins", "draw"],
     }),
+    verdictSummary: text("verdict_summary"),
     championScore: real("champion_score"),
     challengerScore: real("challenger_score"),
     config: jsonb("config").$type<{
@@ -541,8 +543,8 @@ export const battleJudgments = pgTable(
       enum: ["champion", "challenger", "draw"],
     }).notNull(),
     scores: jsonb("scores").$type<{
-      champion: { accuracy: number; completeness: number; style: number; efficiency: number; total: number };
-      challenger: { accuracy: number; completeness: number; style: number; efficiency: number; total: number };
+      champion: Record<string, number> & { total: number };
+      challenger: Record<string, number> & { total: number };
     }>().notNull(),
     reasoning: text("reasoning").notNull(),
     confidence: integer("confidence").notNull(),
@@ -598,6 +600,7 @@ export const arenaLlmCalls = pgTable(
         "judge",
         "evolve",
         "category_council",
+        "verdict_synthesis",
       ],
     }).notNull(),
     model: text("model").notNull(),

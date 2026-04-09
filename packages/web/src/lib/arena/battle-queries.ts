@@ -20,6 +20,7 @@ export async function getBattleDetail(db: Db, battleId: string) {
       championScore: battles.championScore,
       challengerScore: battles.challengerScore,
       config: battles.config,
+      verdictSummary: battles.verdictSummary,
       evolutionBattleId: battles.evolutionBattleId,
       startedAt: battles.startedAt,
       completedAt: battles.completedAt,

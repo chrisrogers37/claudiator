@@ -31,11 +31,15 @@ export function filterSkillFiles(tree: TreeEntry[]): TreeEntry[] {
   });
 }
 
+// TODO(dev-gate): categoryId filter is a development convenience for testing
+// single-category pipelines. Remove or promote to a first-class feature once
+// the arena supports multi-category workflows.
 export async function discoverSkillsFromRepo(
   db: Db,
   repoUrl: string,
   sourceConfigId: string,
-  limit?: number
+  limit?: number,
+  categoryId?: string
 ): Promise<DiscoveryResult> {
   const result: DiscoveryResult = { discovered: 0, skipped: 0, errors: [] };
 
@@ -99,6 +103,23 @@ export async function discoverSkillsFromRepo(
     // Auto-process: categorize -> score -> auto-queue if worthy
     try {
       await categorizeCandidate(db, candidate.id);
+
+      // Category scoping: dismiss candidates that don't match the target category
+      if (categoryId) {
+        const [cat] = await db
+          .select({ categoryId: intakeCandidates.categoryId })
+          .from(intakeCandidates)
+          .where(eq(intakeCandidates.id, candidate.id));
+        if (cat?.categoryId !== categoryId) {
+          await db
+            .update(intakeCandidates)
+            .set({ status: "dismissed", updatedAt: new Date() })
+            .where(eq(intakeCandidates.id, candidate.id));
+          result.skipped++;
+          continue;
+        }
+      }
+
       await scoreFightWorthiness(db, candidate.id);
 
       // Auto-queue if fight score >= 50

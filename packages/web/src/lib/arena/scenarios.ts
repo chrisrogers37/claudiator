@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { scenarioGenerationPrompt } from "./prompts";
 import { callLlm } from "./llm";
 import { emitPipelineEvent } from "./pipeline-events";
+import { DEFAULT_RUBRIC, type ScoringRubric } from "./types";
 
 interface GeneratedScenario {
   description: string;
@@ -61,19 +62,26 @@ export async function generateScenarios(
   await emitPipelineEvent(db, "battle", battleId, "generating_scenarios");
 
   let categoryLabel = "uncategorized";
+  let rubric: ScoringRubric = DEFAULT_RUBRIC;
   if (candidate.categoryId) {
     const [cat] = await db
-      .select({ domain: skillCategories.domain, function: skillCategories.function })
+      .select({
+        domain: skillCategories.domain,
+        function: skillCategories.function,
+        scoringRubric: skillCategories.scoringRubric,
+      })
       .from(skillCategories)
       .where(eq(skillCategories.id, candidate.categoryId));
     if (cat) {
       categoryLabel = `${cat.domain}/${cat.function}`;
+      if (cat.scoringRubric) rubric = cat.scoringRubric as ScoringRubric;
     }
   }
 
   const prompt = scenarioGenerationPrompt(
     candidate.extractedPurpose || "unknown",
-    categoryLabel
+    categoryLabel,
+    rubric
   );
 
   const { text } = await callLlm({

@@ -16,6 +16,7 @@ interface CategoryInfo {
   description: string | null;
   skillCount: number;
   exampleSkills: string[];
+  scoringRubric?: unknown;
 }
 
 export interface CouncilVote {
@@ -46,6 +47,7 @@ async function fetchCategoriesWithExamples(db: Db): Promise<CategoryInfo[]> {
         slug: skillCategories.slug,
         description: skillCategories.description,
         skillCount: sql<number>`count(${skills.id})::int`,
+        scoringRubric: skillCategories.scoringRubric,
       })
       .from(skillCategories)
       .leftJoin(skills, eq(skills.categoryId, skillCategories.id))

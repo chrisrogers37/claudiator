@@ -1,33 +1,14 @@
-"use client";
-
-import { useState } from "react";
-
-interface Scores {
-  champion: {
-    accuracy: number;
-    completeness: number;
-    style: number;
-    efficiency: number;
-    total: number;
-  };
-  challenger: {
-    accuracy: number;
-    completeness: number;
-    style: number;
-    efficiency: number;
-    total: number;
-  };
-}
-
 interface JudgeCardProps {
   judgeIndex: number;
   winnerId: string;
   confidence: number;
-  scores: Scores;
+  scores: {
+    champion: Record<string, number> & { total: number };
+    challenger: Record<string, number> & { total: number };
+  };
   reasoning: string;
+  dimensions: { key: string; label: string }[];
 }
-
-const dimensions = ["accuracy", "completeness", "style", "efficiency"] as const;
 
 export function JudgeCard({
   judgeIndex,
@@ -35,9 +16,8 @@ export function JudgeCard({
   confidence,
   scores,
   reasoning,
+  dimensions,
 }: JudgeCardProps) {
-  const [expanded, setExpanded] = useState(false);
-
   return (
     <div className="rounded-lg border border-gray-800 bg-[#161b22] overflow-hidden">
       {/* Header */}
@@ -65,16 +45,16 @@ export function JudgeCard({
 
       {/* Score Grid */}
       <div className="px-4 py-3">
-        <div className="grid grid-cols-4 gap-2 mb-3">
-          {dimensions.map((dim) => {
-            const champVal = scores.champion[dim];
-            const challVal = scores.challenger[dim];
+        <div className={`grid gap-2 mb-3`} style={{ gridTemplateColumns: `repeat(${dimensions.length}, minmax(0, 1fr))` }}>
+          {dimensions.map(({ key, label }) => {
+            const champVal = scores.champion[key] ?? 0;
+            const challVal = scores.challenger[key] ?? 0;
             const champHigher = champVal > challVal;
             const challHigher = challVal > champVal;
             return (
-              <div key={dim} className="text-center">
-                <p className="font-mono text-xs text-gray-500 uppercase tracking-wider mb-1.5 truncate">
-                  {dim.slice(0, 4)}
+              <div key={key} className="text-center">
+                <p className="font-mono text-xs text-gray-500 uppercase tracking-wider mb-1.5 truncate" title={label}>
+                  {label.slice(0, 6)}
                 </p>
                 <p
                   className={`font-mono text-sm ${champHigher ? "text-yellow-500" : "text-gray-500"}`}
@@ -105,18 +85,10 @@ export function JudgeCard({
           </span>
         </div>
 
-        {/* Reasoning toggle */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="mt-2 w-full text-left font-mono text-xs text-gray-600 hover:text-gray-400 transition-colors"
-        >
-          {expanded ? "\u25BC" : "\u25B6"} reasoning
-        </button>
-        {expanded && (
-          <p className="mt-2 font-mono text-xs text-gray-500 leading-relaxed">
-            {reasoning}
-          </p>
-        )}
+        {/* Reasoning — always visible */}
+        <p className="mt-3 font-mono text-xs text-gray-400 leading-relaxed border-t border-gray-800 pt-3">
+          {reasoning}
+        </p>
       </div>
     </div>
   );
