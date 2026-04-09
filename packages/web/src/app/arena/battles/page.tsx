@@ -10,6 +10,7 @@ import { eq, desc, and, sql, count, type SQL } from "drizzle-orm";
 import Link from "next/link";
 import { extractChallengerName } from "@/lib/arena/extract-challenger-name";
 import { NewBattleForm } from "../components/new-battle-form";
+import { BattleCategoryFilter } from "../components/battle-category-filter";
 import { formatCategoryLabel } from "@/lib/format-category";
 import { FightCard } from "../components/fight-card";
 import { Pagination } from "../components/pagination";
@@ -19,21 +20,24 @@ const PAGE_SIZE = 20;
 export default async function BattlesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; skill?: string }>;
+  searchParams: Promise<{ page?: string; skill?: string; category?: string }>;
 }) {
-  const { page: pageParam, skill: skillParam } = await searchParams;
+  const { page: pageParam, skill: skillParam, category: categoryParam } = await searchParams;
   const page = Math.max(1, parseInt(pageParam || "1", 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
   const db = createDb(process.env.DATABASE_URL!);
 
   // Build filter conditions
-  const battleFilter: SQL | undefined = skillParam
-    ? eq(battles.championSkillId, skillParam)
+  const conditions: SQL[] = [];
+  if (skillParam) conditions.push(eq(battles.championSkillId, skillParam));
+  if (categoryParam) conditions.push(eq(skills.categoryId, categoryParam));
+  const battleFilter: SQL | undefined = conditions.length > 0
+    ? (conditions.length === 1 ? conditions[0] : and(...conditions)!)
     : undefined;
 
-  // Parallel queries: count, battles, champions, candidates
-  const [countResult, allBattles, championsRaw, rawCandidates] = await Promise.all([
+  // Parallel queries: count, battles, champions, candidates, categories
+  const [countResult, allBattles, championsRaw, rawCandidates, allCategories] = await Promise.all([
     battleFilter
       ? db.select({ total: count() }).from(battles).where(battleFilter)
       : db.select({ total: count() }).from(battles),
@@ -97,6 +101,15 @@ export default async function BattlesPage({
       .leftJoin(skillCategories, eq(intakeCandidates.categoryId, skillCategories.id))
       .where(eq(intakeCandidates.status, "queued"))
       .orderBy(desc(intakeCandidates.fightScore)),
+    db
+      .select({
+        id: skillCategories.id,
+        domain: skillCategories.domain,
+        fn: skillCategories.function,
+        slug: skillCategories.slug,
+      })
+      .from(skillCategories)
+      .orderBy(skillCategories.domain),
   ]);
 
   const [{ total }] = countResult;
@@ -133,6 +146,8 @@ export default async function BattlesPage({
       <h2 className="font-mono text-sm text-gray-400 uppercase tracking-wider mb-3 mt-8">
         All Battles
       </h2>
+
+      <BattleCategoryFilter categories={allCategories} />
 
       {skillParam && (
         <div className="mb-4 flex items-center gap-2">
