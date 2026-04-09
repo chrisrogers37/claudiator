@@ -52,6 +52,18 @@ export default async function BattleDetailPage({
     }
   }
 
+  // Infer scoring dimensions from first judgment (supports both legacy and rubric-based)
+  const scoreDimensions = allJudgments.length > 0
+    ? Object.keys((allJudgments[0].scores as Record<string, unknown>).champion as Record<string, number>)
+        .filter(k => k !== "total")
+        .map(k => ({ key: k, label: k.replace(/_/g, " ") }))
+    : [
+        { key: "accuracy", label: "accuracy" },
+        { key: "completeness", label: "completeness" },
+        { key: "style", label: "style" },
+        { key: "efficiency", label: "efficiency" },
+      ];
+
   // Count votes
   let champVotes = 0,
     challVotes = 0,
@@ -124,6 +136,11 @@ export default async function BattleDetailPage({
               <span className="font-mono text-2xl md:text-3xl font-bold text-gray-600">
                 VS
               </span>
+              {battle.challengerCategoryDomain && battle.challengerCategoryFunction && (
+                <p className="font-mono text-xs text-gray-500 mt-1">
+                  {battle.challengerCategoryDomain}/{battle.challengerCategoryFunction}
+                </p>
+              )}
             </div>
 
             {/* Champion (right) */}
@@ -212,6 +229,18 @@ export default async function BattleDetailPage({
         </div>
       )}
 
+      {/* Verdict Synthesis */}
+      {battle.verdictSummary && (
+        <div className="mb-6 rounded-lg border border-gray-800 bg-[#161b22] p-5">
+          <h3 className="font-mono text-xs text-gray-500 uppercase tracking-wider mb-3">
+            Battle Analysis
+          </h3>
+          <div className="font-mono text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+            {battle.verdictSummary}
+          </div>
+        </div>
+      )}
+
       {/* Evolution link */}
       {battle.evolutionBattleId && (
         <div className="mb-6">
@@ -236,6 +265,7 @@ export default async function BattleDetailPage({
             return (
               <details
                 key={scenario.id}
+                open={battle.status === "complete" || undefined}
                 className="rounded-lg border border-gray-800 bg-[#161b22]"
               >
                 <summary className="cursor-pointer px-4 py-3 flex items-center justify-between">
@@ -298,7 +328,7 @@ export default async function BattleDetailPage({
                             <p className="font-mono text-xs text-yellow-500 mb-1">
                               Champion Output
                             </p>
-                            <pre className="rounded border-l-2 border-yellow-500/40 border border-gray-800 bg-[#0d1117] p-3 font-mono text-xs text-gray-300 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
+                            <pre className="rounded border-l-2 border-yellow-500/40 border border-gray-800 bg-[#0d1117] p-3 font-mono text-xs text-gray-300 overflow-x-auto max-h-[600px] overflow-y-auto whitespace-pre-wrap">
                               <code>{round.championOutput}</code>
                             </pre>
                           </div>
@@ -306,7 +336,7 @@ export default async function BattleDetailPage({
                             <p className="font-mono text-xs text-orange-400 mb-1">
                               Challenger Output
                             </p>
-                            <pre className="rounded border-l-2 border-orange-400/40 border border-gray-800 bg-[#0d1117] p-3 font-mono text-xs text-gray-300 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
+                            <pre className="rounded border-l-2 border-orange-400/40 border border-gray-800 bg-[#0d1117] p-3 font-mono text-xs text-gray-300 overflow-x-auto max-h-[600px] overflow-y-auto whitespace-pre-wrap">
                               <code>{round.challengerOutput}</code>
                             </pre>
                           </div>
@@ -317,20 +347,8 @@ export default async function BattleDetailPage({
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {roundJudgments.map((j) => {
                               const scores = j.scores as {
-                                champion: {
-                                  accuracy: number;
-                                  completeness: number;
-                                  style: number;
-                                  efficiency: number;
-                                  total: number;
-                                };
-                                challenger: {
-                                  accuracy: number;
-                                  completeness: number;
-                                  style: number;
-                                  efficiency: number;
-                                  total: number;
-                                };
+                                champion: Record<string, number> & { total: number };
+                                challenger: Record<string, number> & { total: number };
                               };
                               return (
                                 <JudgeCard
@@ -340,6 +358,7 @@ export default async function BattleDetailPage({
                                   confidence={j.confidence}
                                   scores={scores}
                                   reasoning={j.reasoning}
+                                  dimensions={scoreDimensions}
                                 />
                               );
                             })}
