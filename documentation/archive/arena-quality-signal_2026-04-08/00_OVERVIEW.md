@@ -33,13 +33,13 @@ Phases 4 and 5 are independent of each other but both depend on Phases 1-3.
 
 ## Phase Summary
 
-| Phase | Title | Depends On | Effort |
-|-------|-------|-----------|--------|
-| 01 | Category Rubrics & Domain-Aware Scenarios | -- | Medium |
-| 02 | Verdict Synthesis & Judge Context | 01 | Low-Medium |
-| 03 | Battle Detail Page Improvements | 02 | Medium |
-| 04 | Leaderboard Signal | 03 | Medium |
-| 05 | Battle Filtering & Category Seeding | 01 | Medium |
+| Phase | Title | Depends On | Effort | Status |
+|-------|-------|-----------|--------|--------|
+| 01 | Category Rubrics & Domain-Aware Scenarios | -- | Medium | COMPLETED |
+| 02 | Verdict Synthesis & Judge Context | 01 | Low-Medium | COMPLETED |
+| 03 | Battle Detail Page Improvements | 02 | Medium | COMPLETED |
+| 04 | Leaderboard Signal | 03 | Medium | COMPLETED |
+| 05 | Battle Filtering & Category Seeding | 01 | Medium | COMPLETED |
 
 ## Test Category
 
