@@ -7,7 +7,7 @@ End-to-end pipeline from intake submission through battle to evolution.
 ```mermaid
 flowchart TD
     subgraph Intake["Intake Phase"]
-        A[Candidate Submitted] --> B[Categorize - Haiku]
+        A[Candidate Submitted] --> B[Categorize - 5x Haiku Council]
         B --> C{Matches existing skill?}
         C -->|Yes| D[Score Fight Worthiness - Haiku]
         C -->|No| E[Auto-score 80, new category]
@@ -33,7 +33,8 @@ flowchart TD
 
     subgraph Verdict["Aggregation & Verdict"]
         M --> N[Aggregate all judgments]
-        N --> O{Determine verdict}
+        N --> N2[Synthesize verdict - Haiku]
+        N2 --> O{Determine verdict}
         O -->|Champion wins| P[Champion retains title]
         O -->|Challenger wins| Q[Challenger promoted]
         O -->|Draw| R[Draw recorded]
@@ -59,10 +60,11 @@ flowchart TD
 | Scenario Generation | Haiku | 1 | Generate 3 test scenarios |
 | Skill Execution | Sonnet | 6 | 3 scenarios x 1 round x 2 skills |
 | Judging | Haiku | 15 | 3 scenarios x 1 round x 5 judges |
-| **Total per battle** | | **22** | |
+| Verdict Synthesis | Haiku | 1 | Narrative summary of battle outcome |
+| **Total per battle** | | **23** | |
 
 Additional calls outside battle scope:
-- Categorization: 1 Haiku call per candidate
+- Categorization: 5 Haiku calls per candidate (category council, majority threshold 3)
 - Fight Scoring: 1 Haiku call per candidate with champion match
 - Evolution: 1 Sonnet call if triggered
 
