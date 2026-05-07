@@ -10,22 +10,29 @@ import {
   real,
   uniqueIndex,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
-export const users = pgTable("users", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  githubId: integer("github_id").notNull().unique(),
-  githubUsername: text("github_username").notNull(),
-  displayName: text("display_name"),
-  avatarUrl: text("avatar_url"),
-  email: text("email"),
-  role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    githubId: integer("github_id").notNull().unique(),
+    githubUsername: text("github_username").notNull(),
+    displayName: text("display_name"),
+    avatarUrl: text("avatar_url"),
+    email: text("email"),
+    role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("chk_users_role", sql`${table.role} IN ('admin', 'member')`),
+  ]
+);
 
 // ─── API Tokens ──────────────────────────────────────────────────────────────
 
@@ -199,6 +206,10 @@ export const activityEvents = pgTable(
     index("idx_activity_events_user_created").on(table.userId, table.createdAt),
     index("idx_activity_events_event_type").on(table.eventType),
     index("idx_activity_events_skill_id").on(table.skillId),
+    check(
+      "chk_activity_events_event_type",
+      sql`${table.eventType} IN ('sync', 'rollback', 'pin', 'unpin', 'feedback', 'token_generate', 'token_rotate', 'publish', 'version_nudge', 'feedback_status_change')`
+    ),
   ]
 );
 
@@ -236,6 +247,11 @@ export const skillFeedback = pgTable(
     index("idx_feedback_user_id").on(table.userId),
     index("idx_feedback_session_id").on(table.sessionId),
     index("idx_feedback_status").on(table.status),
+    check("chk_skill_feedback_rating", sql`${table.rating} >= 1 AND ${table.rating} <= 5`),
+    check(
+      "chk_skill_feedback_status",
+      sql`${table.status} IN ('new', 'acknowledged', 'in_progress', 'resolved')`
+    ),
   ]
 );
 
@@ -295,7 +311,17 @@ export const sourceConfigs = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("idx_source_configs_active").on(table.isActive)]
+  (table) => [
+    index("idx_source_configs_active").on(table.isActive),
+    check(
+      "chk_source_configs_source_type",
+      sql`${table.sourceType} IN ('anthropic_docs', 'anthropic_blog', 'changelog', 'github_repo', 'mcp_registry', 'github_skill_repo')`
+    ),
+    check(
+      "chk_source_configs_check_frequency",
+      sql`${table.checkFrequency} IN ('daily', 'weekly')`
+    ),
+  ]
 );
 
 // ─── Source Snapshots (Intelligence Pipeline) ────────────────────────────────
@@ -357,6 +383,14 @@ export const learnings = pgTable(
     index("idx_learnings_status").on(table.status),
     index("idx_learnings_distilled_at").on(table.distilledAt),
     index("idx_learnings_source_type").on(table.sourceType),
+    check(
+      "chk_learnings_source_type",
+      sql`${table.sourceType} IN ('blog', 'docs', 'changelog', 'community', 'anthropic_docs', 'anthropic_blog', 'github_repo', 'mcp_registry')`
+    ),
+    check(
+      "chk_learnings_status",
+      sql`${table.status} IN ('new', 'reviewed', 'applied', 'dismissed')`
+    ),
   ]
 );
 
@@ -388,6 +422,10 @@ export const learningSkillLinks = pgTable(
     index("idx_learning_skill_links_skill_id").on(table.skillId),
     index("idx_learning_skill_links_skill").on(table.skillSlug),
     index("idx_learning_skill_links_status").on(table.status),
+    check(
+      "chk_learning_skill_links_status",
+      sql`${table.status} IN ('pending', 'applied', 'rejected')`
+    ),
   ]
 );
 
@@ -425,6 +463,14 @@ export const intakeCandidates = pgTable(
   (table) => [
     index("idx_intake_status").on(table.status),
     index("idx_intake_fight_score").on(table.fightScore),
+    check(
+      "chk_intake_candidates_source_type",
+      sql`${table.sourceType} IN ('github_skill', 'web_article', 'community_submission', 'provider_skills')`
+    ),
+    check(
+      "chk_intake_candidates_status",
+      sql`${table.status} IN ('new', 'categorized', 'scored', 'queued', 'battling', 'promoted', 'rejected', 'dismissed')`
+    ),
   ]
 );
 
@@ -474,6 +520,14 @@ export const battles = pgTable(
     index("idx_battles_status").on(table.status),
     index("idx_battles_champion_skill").on(table.championSkillId),
     index("idx_battles_challenger").on(table.challengerId),
+    check(
+      "chk_battles_status",
+      sql`${table.status} IN ('pending', 'running', 'judging', 'complete', 'failed', 'cancelled')`
+    ),
+    check(
+      "chk_battles_verdict",
+      sql`${table.verdict} IN ('champion_wins', 'challenger_wins', 'draw')`
+    ),
   ]
 );
 
@@ -495,7 +549,13 @@ export const battleScenarios = pgTable(
     }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("idx_scenarios_battle").on(table.battleId)]
+  (table) => [
+    index("idx_scenarios_battle").on(table.battleId),
+    check(
+      "chk_battle_scenarios_difficulty",
+      sql`${table.difficulty} IN ('easy', 'medium', 'hard')`
+    ),
+  ]
 );
 
 // ─── Battle Rounds ──────────────────────────────────────────────────────────
@@ -554,7 +614,13 @@ export const battleJudgments = pgTable(
     outputTokens: integer("output_tokens"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("idx_judgments_round").on(table.roundId)]
+  (table) => [
+    index("idx_judgments_round").on(table.roundId),
+    check(
+      "chk_battle_judgments_winner_id",
+      sql`${table.winnerId} IN ('champion', 'challenger', 'draw')`
+    ),
+  ]
 );
 
 // ─── Arena Rankings ─────────────────────────────────────────────────────────
@@ -625,6 +691,18 @@ export const arenaLlmCalls = pgTable(
     index("idx_llm_calls_candidate").on(table.candidateId),
     index("idx_llm_calls_call_type").on(table.callType),
     index("idx_llm_calls_created_at").on(table.createdAt),
+    check(
+      "chk_arena_llm_calls_call_type",
+      sql`${table.callType} IN ('categorize', 'fight_score', 'scenario_gen', 'skill_exec_champion', 'skill_exec_challenger', 'judge', 'evolve', 'category_council', 'verdict_synthesis')`
+    ),
+    check(
+      "chk_arena_llm_calls_status",
+      sql`${table.status} IN ('success', 'error', 'parse_failure', 'rate_limited')`
+    ),
+    check(
+      "chk_arena_llm_calls_parent_entity_type",
+      sql`${table.parentEntityType} IN ('battle_round', 'battle_scenario', 'battle_judgment', 'intake_candidate')`
+    ),
   ]
 );
 
@@ -653,6 +731,7 @@ export const arenaEloHistory = pgTable(
   (table) => [
     index("idx_elo_history_skill").on(table.skillId),
     index("idx_elo_history_battle").on(table.battleId),
+    check("chk_arena_elo_history_outcome", sql`${table.outcome} IN ('win', 'loss', 'draw')`),
   ]
 );
 
@@ -677,5 +756,6 @@ export const arenaPipelineEvents = pgTable(
     index("idx_pipeline_events_entity").on(table.entityId),
     index("idx_pipeline_events_phase").on(table.phase),
     index("idx_pipeline_events_created_at").on(table.createdAt),
+    check("chk_arena_pipeline_events_entity_type", sql`${table.entityType} IN ('candidate', 'battle')`),
   ]
 );

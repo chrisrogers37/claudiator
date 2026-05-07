@@ -1,5 +1,5 @@
 {
-  "id": "356b5906-ac67-4b0e-87a9-22e0be075f27",
+  "id": "f78b6f3e-268b-4315-b9a3-dcfab2239f12",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -137,7 +137,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_activity_events_event_type": {
+          "name": "chk_activity_events_event_type",
+          "value": "\"activity_events\".\"event_type\" IN ('sync', 'rollback', 'pin', 'unpin', 'feedback', 'token_generate', 'token_rotate', 'publish', 'version_nudge', 'feedback_status_change')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.api_tokens": {
@@ -399,7 +404,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_arena_elo_history_outcome": {
+          "name": "chk_arena_elo_history_outcome",
+          "value": "\"arena_elo_history\".\"outcome\" IN ('win', 'loss', 'draw')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.arena_llm_calls": {
@@ -598,7 +608,20 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_arena_llm_calls_call_type": {
+          "name": "chk_arena_llm_calls_call_type",
+          "value": "\"arena_llm_calls\".\"call_type\" IN ('categorize', 'fight_score', 'scenario_gen', 'skill_exec_champion', 'skill_exec_challenger', 'judge', 'evolve', 'category_council', 'verdict_synthesis')"
+        },
+        "chk_arena_llm_calls_status": {
+          "name": "chk_arena_llm_calls_status",
+          "value": "\"arena_llm_calls\".\"status\" IN ('success', 'error', 'parse_failure', 'rate_limited')"
+        },
+        "chk_arena_llm_calls_parent_entity_type": {
+          "name": "chk_arena_llm_calls_parent_entity_type",
+          "value": "\"arena_llm_calls\".\"parent_entity_type\" IN ('battle_round', 'battle_scenario', 'battle_judgment', 'intake_candidate')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.arena_pipeline_events": {
@@ -708,7 +731,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_arena_pipeline_events_entity_type": {
+          "name": "chk_arena_pipeline_events_entity_type",
+          "value": "\"arena_pipeline_events\".\"entity_type\" IN ('candidate', 'battle')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.arena_rankings": {
@@ -962,7 +990,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_battle_judgments_winner_id": {
+          "name": "chk_battle_judgments_winner_id",
+          "value": "\"battle_judgments\".\"winner_id\" IN ('champion', 'challenger', 'draw')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.battle_rounds": {
@@ -1218,7 +1251,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_battle_scenarios_difficulty": {
+          "name": "chk_battle_scenarios_difficulty",
+          "value": "\"battle_scenarios\".\"difficulty\" IN ('easy', 'medium', 'hard')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.battles": {
@@ -1434,7 +1472,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_battles_status": {
+          "name": "chk_battles_status",
+          "value": "\"battles\".\"status\" IN ('pending', 'running', 'judging', 'complete', 'failed', 'cancelled')"
+        },
+        "chk_battles_verdict": {
+          "name": "chk_battles_verdict",
+          "value": "\"battles\".\"verdict\" IN ('champion_wins', 'challenger_wins', 'draw')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.intake_candidates": {
@@ -1601,7 +1648,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_intake_candidates_source_type": {
+          "name": "chk_intake_candidates_source_type",
+          "value": "\"intake_candidates\".\"source_type\" IN ('github_skill', 'web_article', 'community_submission', 'provider_skills')"
+        },
+        "chk_intake_candidates_status": {
+          "name": "chk_intake_candidates_status",
+          "value": "\"intake_candidates\".\"status\" IN ('new', 'categorized', 'scored', 'queued', 'battling', 'promoted', 'rejected', 'dismissed')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.learning_skill_links": {
@@ -1775,7 +1831,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_learning_skill_links_status": {
+          "name": "chk_learning_skill_links_status",
+          "value": "\"learning_skill_links\".\"status\" IN ('pending', 'applied', 'rejected')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.learnings": {
@@ -1906,7 +1967,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_learnings_source_type": {
+          "name": "chk_learnings_source_type",
+          "value": "\"learnings\".\"source_type\" IN ('blog', 'docs', 'changelog', 'community', 'anthropic_docs', 'anthropic_blog', 'github_repo', 'mcp_registry')"
+        },
+        "chk_learnings_status": {
+          "name": "chk_learnings_status",
+          "value": "\"learnings\".\"status\" IN ('new', 'reviewed', 'applied', 'dismissed')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.skill_categories": {
@@ -2205,7 +2275,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_skill_feedback_rating": {
+          "name": "chk_skill_feedback_rating",
+          "value": "\"skill_feedback\".\"rating\" >= 1 AND \"skill_feedback\".\"rating\" <= 5"
+        },
+        "chk_skill_feedback_status": {
+          "name": "chk_skill_feedback_status",
+          "value": "\"skill_feedback\".\"status\" IN ('new', 'acknowledged', 'in_progress', 'resolved')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.skill_invocations": {
@@ -2757,7 +2836,16 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_source_configs_source_type": {
+          "name": "chk_source_configs_source_type",
+          "value": "\"source_configs\".\"source_type\" IN ('anthropic_docs', 'anthropic_blog', 'changelog', 'github_repo', 'mcp_registry', 'github_skill_repo')"
+        },
+        "chk_source_configs_check_frequency": {
+          "name": "chk_source_configs_check_frequency",
+          "value": "\"source_configs\".\"check_frequency\" IN ('daily', 'weekly')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.source_snapshots": {
@@ -3092,7 +3180,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "chk_users_role": {
+          "name": "chk_users_role",
+          "value": "\"users\".\"role\" IN ('admin', 'member')"
+        }
+      },
       "isRLSEnabled": false
     }
   },

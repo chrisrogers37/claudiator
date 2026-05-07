@@ -4,79 +4,9 @@
   "entries": [
     {
       "idx": 0,
-      "version": "0001",
-      "when": 1738368000000,
-      "tag": "0001_phase05_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "0002",
-      "when": 1739577600000,
-      "tag": "0002_phase06_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "0003",
-      "when": 1741305600000,
-      "tag": "0003_arena_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "0004",
-      "when": 1741996800000,
-      "tag": "0004_arena_observability",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "0005",
-      "when": 1743033600000,
-      "tag": "0005_learnings_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "0006",
-      "when": 1743206400000,
-      "tag": "0006_db_constraints",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "0007",
-      "when": 1743206401000,
-      "tag": "0007_slug_to_fk",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "0008",
-      "when": 1743206402000,
-      "tag": "0008_remaining_enum_constraints",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "0009",
-      "when": 1743206403000,
-      "tag": "0009_skill_categories",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "0010",
-      "when": 1743292800000,
-      "tag": "0010_rename_session_to_workflow",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "0011",
-      "when": 1743379200000,
-      "tag": "0011_drop_old_category_columns",
+      "version": "7",
+      "when": 1778181566954,
+      "tag": "0000_initial",
       "breakpoints": true
     }
   ]
