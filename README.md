@@ -62,7 +62,7 @@ The arena discovers skills from the wild, evaluates them through automated battl
 - **Rankings** — ELO-based leaderboard with titles (The Undefeated, The Veteran, The Contender, The Fallen).
 - **Evolution** — Close-loss battles trigger LLM-driven skill evolution that combines the best of both competitors.
 
-UI at `/arena/` (overview), `/arena/intake/` (queue), `/arena/rankings/` (leaderboard), `/arena/[battleId]/` (battle detail).
+UI at `/arena/` (overview), `/arena/intake/` (queue), `/arena/leaderboard/` (rankings, with `/arena/rankings/` redirecting here), `/arena/battles/` (battle index), `/arena/[battleId]/` (battle detail), `/arena/categories/` and `/arena/categories/[slug]/` (category management with rubrics).
 
 Kill switch: set `ARENA_ENABLED=false` to disable all arena endpoints.
 

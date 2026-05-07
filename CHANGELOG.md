@@ -16,7 +16,7 @@
 
 ### Previously added
 
-- **Usage telemetry schema** — Two new Drizzle tables: `skill_invocations` (per-invocation logging) and `skill_feedback` (end-of-session ratings). Indexed for Workshop and Dashboard queries. `sync_events` deferred to Phase 03.
+- **Usage telemetry schema** — Two new Drizzle tables: `skill_invocations` (per-invocation logging) and `skill_feedback` (end-of-session ratings). Indexed for Workshop and Dashboard queries. Audit logging consolidated into the broader `activity_events` table (see below).
 - **`claudiator_log_invocation` MCP tool** — Fire-and-forget skill invocation logging. Called by the PostToolUse hook or explicitly by skills that want to report duration/metadata.
 - **`claudiator_session_feedback` MCP tool** — End-of-session skill ratings (1-5) with optional comments.
 - **PostToolUse telemetry hook** — `posttooluse-telemetry.sh` automatically detects Skill tool invocations and logs them to a session-local JSONL file. Zero-touch for skill authors.
@@ -24,7 +24,7 @@
 - **Claudiator Platform permission category** — New opt-in category in `recommended-permissions.json` for MCP tool auto-approval.
 - **Shared telemetry instructions** — `global/skills/_shared/telemetry-instructions.md` reference for skills that want to report duration/metadata.
 
-- **`sync_events` audit trail table** — Drizzle table for logging sync, rollback, pin, and unpin operations with JSONB details.
+- **`activity_events` audit trail table** — Drizzle table for logging sync, rollback, pin, unpin, and other user activity with JSONB details. (Originally drafted as `sync_events`; broadened to cover all activity event types.)
 - **`claudiator_rollback` MCP tool** — Fetch a previous version of a skill from the registry for rollback. Supports specific version or "previous" shorthand.
 - **`claudiator_pin` MCP tool** — Pin a skill to a specific version. Pinned skills are skipped during sync.
 - **`claudiator_unpin` MCP tool** — Remove version pin from a skill, resuming tracking of latest.

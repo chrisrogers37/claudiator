@@ -81,14 +81,28 @@ Additional calls outside battle scope:
 
 ## Pipeline Event Flow
 
-### Candidate Lifecycle
+Two systems track lifecycle progress: **database statuses** (terminal/durable state on the row) and **pipeline events** (granular phase transitions written to `arena_pipeline_events` for observability). Pipeline events are finer-grained than statuses.
+
+### Candidate
+
+**DB status** (`intake_candidates.status` enum):
 ```
-submitted -> categorizing -> categorized -> scoring -> scored -> queued -> battling -> promoted/rejected
+new -> categorized -> scored -> queued -> battling -> promoted | rejected | dismissed
 ```
 
-### Battle Lifecycle
+**Pipeline events** (informational, emitted via `emitPipelineEvent`):
 ```
-creating_battle -> generating_scenarios -> executing_rounds -> judging -> aggregating -> complete
-                                                                                      -> evolving -> evolved
-                                                                                      -> failed
+categorizing, scoring  (in addition to the status transitions above)
+```
+
+### Battle
+
+**DB status** (`battles.status` enum):
+```
+pending -> running -> judging -> complete | failed | cancelled
+```
+
+**Pipeline events** (informational):
+```
+creating_battle -> generating_scenarios -> executing_rounds -> aggregating -> evolving -> evolved
 ```
