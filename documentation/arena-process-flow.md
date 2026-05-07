@@ -70,14 +70,20 @@ Additional calls outside battle scope:
 
 ## Observability Tables
 
-| Table | Purpose |
-|-------|---------|
-| `arena_llm_calls` | Every LLM API call with tokens, latency, cost, status |
-| `arena_elo_history` | ELO snapshots per battle for trend analysis |
-| `arena_pipeline_events` | Phase transitions with timestamps and duration |
-| `battle_rounds` (extended) | Per-execution model, tokens, latency |
-| `battle_judgments` (extended) | Per-judge model, tokens, latency |
-| `battles` (extended) | Aggregate LLM call count, tokens, cost |
+Three append-only tables capture the full execution trace. There is no retention or pruning logic today — they grow indefinitely.
+
+| Table | Purpose | Write path | Read path |
+|-------|---------|------------|-----------|
+| `arena_llm_calls` | Every LLM API call: model, tokens, latency, cost, status, error | `callLlm()` in `lib/arena/llm.ts` (every Anthropic call funnels through it) | `executor.ts` aggregates per-battle totals into `battles.total*` columns |
+| `arena_elo_history` | One row per battle per skill: before, after, change, opponent ELO, outcome | `updateRankings()` in `lib/arena/rankings.ts` | Leaderboard sparklines (`app/arena/leaderboard/page.tsx`) |
+| `arena_pipeline_events` | Granular phase transitions for `candidate` and `battle` entities, with `durationMs` since previous phase | `emitPipelineEvent()` in `lib/arena/pipeline-events.ts` (self-reads to compute duration) | Internal only — no UI yet |
+| `battle_rounds` (extended) | Per-execution model, tokens, latency | `executor.ts` per-round | Battle detail page |
+| `battle_judgments` (extended) | Per-judge model, tokens, latency | `executor.ts` per-judgment | Battle detail page |
+| `battles` (extended) | Aggregate LLM call count, tokens, cost | `executor.ts` post-battle aggregation from `arena_llm_calls` | Battle list, leaderboard |
+
+`emitPipelineEvent(db, entityType, entityId, phase, metadata?)` is the single helper to write pipeline events. It reads the most recent event for the entity, computes `durationMs`, and inserts. Callers in `executor.ts` and `evolution.ts` use it to mark phases listed in [Pipeline Event Flow](#pipeline-event-flow) below.
+
+Cost is computed at write time by `calculateCostCents(model, inputTokens, outputTokens)` in `lib/arena/costs.ts` (Haiku: 1¢/5¢ per million in/out; Sonnet: 3¢/15¢).
 
 ## Pipeline Event Flow
 
