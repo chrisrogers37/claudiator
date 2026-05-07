@@ -1,5 +1,5 @@
-import { createDb } from "@claudiator/db/client";
-import { skillCategories } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { skillCategories } from "@claudosseum/db/schema";
 import { asc } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SkillGrid } from "./components/skill-grid";

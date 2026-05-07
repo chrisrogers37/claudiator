@@ -1,11 +1,11 @@
-import type { Db } from "@claudiator/db/client";
+import type { Db } from "@claudosseum/db/client";
 import {
   intakeCandidates,
   battles,
   skills,
   skillVersions,
   arenaRankings,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, and, desc, isNotNull } from "drizzle-orm";
 
 const DEFAULT_BATTLE_CONFIG = {

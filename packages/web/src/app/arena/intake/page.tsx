@@ -1,10 +1,10 @@
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import {
   intakeCandidates,
   skills,
   skillCategories,
   battles,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { desc, eq, count, sql } from "drizzle-orm";
 import { IntakeActions } from "../components/intake-actions";
 import { CandidateSubmitForm } from "../components/candidate-submit-form";

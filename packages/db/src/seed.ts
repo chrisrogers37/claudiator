@@ -43,7 +43,7 @@ const SKILL_TAXONOMY: Record<string, { domain: string; function: string }> = {
   "repo-health": { domain: "repo", function: "health" },
   "notes": { domain: "notes", function: "manage" },
   "notifications": { domain: "notifications", function: "manage" },
-  "claudiator-migrate": { domain: "claudiator", function: "migrate" },
+  "claudosseum-migrate": { domain: "claudosseum", function: "migrate" },
   "cache-audit": { domain: "cache", function: "audit" },
 };
 
@@ -132,7 +132,7 @@ async function main() {
       version: "1.0.0",
       content,
       references,
-      changelog: "Initial import from claudiator git repository.",
+      changelog: "Initial import from claudosseum git repository.",
       isLatest: true,
     });
 

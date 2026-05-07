@@ -27,7 +27,7 @@ export function categoryCouncilPrompt(
     .join("\n");
 
   return {
-    system: `You are a skill taxonomy classifier for Claudiator, a Claude Code skills arena. Skills are categorized with a two-level taxonomy: DOMAIN (what platform or area, e.g. "railway", "neon", "git") and FUNCTION (what it does, e.g. "deploy", "query", "commit").
+    system: `You are a skill taxonomy classifier for Claudosseum, a Claude Code skills arena. Skills are categorized with a two-level taxonomy: DOMAIN (what platform or area, e.g. "railway", "neon", "git") and FUNCTION (what it does, e.g. "deploy", "query", "commit").
 
 Your job: classify a new skill into the most appropriate EXISTING category, or suggest a new one ONLY if no existing category fits.
 
@@ -57,7 +57,7 @@ export function categorizationPrompt(rawContent: string): {
   user: string;
 } {
   return {
-    system: `You are an AI skill analyst for Claudiator, a Claude Code skills platform. Your job is to analyze skill content and determine its purpose and category.
+    system: `You are an AI skill analyst for Claudosseum, a Claude Code skills platform. Your job is to analyze skill content and determine its purpose and category.
 
 Categories:
 - deployment: Skills for deploying applications (Railway, Vercel, Modal, etc.)
@@ -85,7 +85,7 @@ export function fightScoringPrompt(
   championContent: string
 ): { system: string; user: string } {
   return {
-    system: `You are a fight-worthiness evaluator for Claudiator's arena system. You score how likely a challenger skill is to beat or offer meaningful improvements over the reigning champion.
+    system: `You are a fight-worthiness evaluator for Claudosseum's arena system. You score how likely a challenger skill is to beat or offer meaningful improvements over the reigning champion.
 
 Score from 0-100:
 - 0-20: Clearly inferior, no meaningful improvements
@@ -123,7 +123,7 @@ ${rubric.dimensions.map(d => `- ${d.label}: ${d.description}`).join('\n')}
 Design scenarios that allow judges to meaningfully differentiate on these dimensions. The project context and user prompt should create situations where these specific dimensions can be evaluated.`;
 
   return {
-    system: `You are a scenario designer for Claudiator's battle arena. Generate realistic test scenarios for evaluating Claude Code skills.
+    system: `You are a scenario designer for Claudosseum's battle arena. Generate realistic test scenarios for evaluating Claude Code skills.
 ${rubricSection}
 
 CRITICAL RULES:
@@ -197,7 +197,7 @@ export function judgingPrompt(rubric: ScoringRubric): string {
   const dimensionList = rubric.dimensions.map(d => `- ${d.key}: ${d.description}`).join('\n');
   const scoreFields = rubric.dimensions.map(d => `"${d.key}": <0-${d.maxScore}>`).join(', ');
 
-  return `You are a judge in Claudiator's battle arena. You evaluate two skill outputs for the same scenario and determine which one is better.
+  return `You are a judge in Claudosseum's battle arena. You evaluate two skill outputs for the same scenario and determine which one is better.
 
 Score each output on ${rubric.dimensions.length} dimensions (0-${rubric.dimensions[0].maxScore} each, total 0-100):
 ${dimensionList}
@@ -239,7 +239,7 @@ export function verdictSynthesisPrompt(
   rubric: ScoringRubric
 ): { system: string } {
   return {
-    system: `You are a battle analyst for Claudiator's skill arena. After all judges have voted, you synthesize their individual judgments into a clear, concise narrative.
+    system: `You are a battle analyst for Claudosseum's skill arena. After all judges have voted, you synthesize their individual judgments into a clear, concise narrative.
 
 Your summary should:
 1. State the verdict and margin (e.g., "The challenger won 4-1 with an average score advantage of 12 points")
@@ -278,7 +278,7 @@ export function evolutionPrompt(
   battleResults: string
 ): { system: string; user: string } {
   return {
-    system: `You are a skill evolution engine for Claudiator. After a close battle, you analyze both skills and create an evolved version that combines the best techniques from both.
+    system: `You are a skill evolution engine for Claudosseum. After a close battle, you analyze both skills and create an evolved version that combines the best techniques from both.
 
 The evolved skill should:
 1. Start with the winner's structure as the base

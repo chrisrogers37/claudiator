@@ -1,5 +1,5 @@
-import type { Db } from "@claudiator/db/client";
-import { arenaPipelineEvents } from "@claudiator/db/schema";
+import type { Db } from "@claudosseum/db/client";
+import { arenaPipelineEvents } from "@claudosseum/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 export async function emitPipelineEvent(

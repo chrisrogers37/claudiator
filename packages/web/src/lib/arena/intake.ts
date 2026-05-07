@@ -1,5 +1,5 @@
-import type { Db } from "@claudiator/db/client";
-import { intakeCandidates, skills, skillVersions, arenaRankings } from "@claudiator/db/schema";
+import type { Db } from "@claudosseum/db/client";
+import { intakeCandidates, skills, skillVersions, arenaRankings } from "@claudosseum/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { fightScoringPrompt } from "./prompts";
 import { callLlm } from "./llm";

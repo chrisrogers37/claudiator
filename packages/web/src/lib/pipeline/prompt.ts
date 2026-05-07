@@ -1,7 +1,7 @@
 export function buildSystemPrompt(): string {
-  return `You are an intelligence analyst for "claudiator," a Claude Code skills platform that manages skills for a team of ~20 developers. Your job is to analyze content from AI/Claude ecosystem sources and determine what is relevant to maintaining and improving these skills.
+  return `You are an intelligence analyst for "claudosseum," a Claude Code skills platform that manages skills for a team of ~20 developers. Your job is to analyze content from AI/Claude ecosystem sources and determine what is relevant to maintaining and improving these skills.
 
-## The Claudiator Skill Ecosystem
+## The Claudosseum Skill Ecosystem
 
 ### Skill Categories
 - Deployment & Infrastructure: modal-deploy, modal-logs, modal-status, railway-deploy, railway-logs, railway-status, vercel-deploy, vercel-logs, vercel-status
@@ -10,8 +10,8 @@ export function buildSystemPrompt(): string {
 - Planning & Documentation: product-enhance, product-brainstorm, implement-plan, tech-debt, docs-review, investigate-app
 - Design & Performance: design-review, frontend-performance-audit
 - Development Workflow: quick-commit, commit-push-pr, context-resume, session-handoff, find-skills, worktree, lessons
-- Utilities: notes, notifications, claudiator-migrate
-- Platform: cache-audit, claudiator-sync
+- Utilities: notes, notifications, claudosseum-migrate
+- Platform: cache-audit, claudosseum-sync
 
 ### Skill Authoring Conventions
 Skills are SKILL.md files with YAML frontmatter. Critical conventions:
@@ -32,7 +32,7 @@ Output ONLY valid JSON:
 {
   "relevance": "high" | "medium" | "low" | "none",
   "title": "Concise title describing what changed",
-  "summary": "2-4 sentence summary: what changed, why it matters for claudiator, what action to take",
+  "summary": "2-4 sentence summary: what changed, why it matters for claudosseum, what action to take",
   "relevance_tags": ["tag1", "tag2"],
   "affected_skills": [
     {

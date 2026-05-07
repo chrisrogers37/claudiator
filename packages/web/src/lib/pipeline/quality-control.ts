@@ -1,5 +1,5 @@
-import type { Db } from "@claudiator/db/client";
-import { learnings, sourceSnapshots } from "@claudiator/db/schema";
+import type { Db } from "@claudosseum/db/client";
+import { learnings, sourceSnapshots } from "@claudosseum/db/schema";
 import { eq, and, sql, lt } from "drizzle-orm";
 
 interface QualityControlResult {

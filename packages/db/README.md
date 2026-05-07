@@ -1,6 +1,6 @@
-# @claudiator/db
+# @claudosseum/db
 
-Database layer for Claudiator. Drizzle ORM schema, migration runner, seed script, and shared helpers (`auth`, `publish`) used by the MCP server and the web app.
+Database layer for Claudosseum. Drizzle ORM schema, migration runner, seed script, and shared helpers (`auth`, `publish`) used by the MCP server and the web app.
 
 ## Stack
 
@@ -50,16 +50,16 @@ For arena flow, see [`documentation/arena-process-flow.md`](../../documentation/
 After changing the schema:
 
 ```bash
-pnpm --filter @claudiator/db generate   # write a new migration
-pnpm --filter @claudiator/db migrate    # apply it
-pnpm --filter @claudiator/db build      # rebuild dist so consumers see the new types
+pnpm --filter @claudosseum/db generate   # write a new migration
+pnpm --filter @claudosseum/db migrate    # apply it
+pnpm --filter @claudosseum/db build      # rebuild dist so consumers see the new types
 ```
 
 Downstream packages import like:
 
 ```ts
-import { createDb } from "@claudiator/db/client";
-import { skills, battles } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { skills, battles } from "@claudosseum/db/schema";
 
 const db = createDb(process.env.DATABASE_URL!);
 ```
@@ -76,6 +76,6 @@ When adding a migration that depends on data state, prefer separate migrations f
 
 - **`.env.local` lives at the repo root**, not in this package. `pnpm migrate` and `pnpm seed` use `tsx --env-file=../../.env.local`. If the file is missing they fail with no `DATABASE_URL`.
 - **Neon HTTP driver has no interactive transactions.** Use `db.batch([...])` for atomicity (see `publish.ts` for the pattern).
-- **Stale `dist/` after schema changes** breaks consumers. Always `pnpm --filter @claudiator/db build` after `generate`. Open issue: #22.
+- **Stale `dist/` after schema changes** breaks consumers. Always `pnpm --filter @claudosseum/db build` after `generate`. Open issue: #22.
 - **Seed taxonomy is hardcoded** — the `SKILL_TAXONOMY` map in `seed.ts` lists each skill's (domain, function). Add a new skill there before seeding it.
 - **`userInstalledVersions` has no write path today** — the schema exists for a future feature; admin UI reads it but nothing writes to it.

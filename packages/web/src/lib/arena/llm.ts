@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { Db } from "@claudiator/db/client";
-import { arenaLlmCalls } from "@claudiator/db/schema";
+import type { Db } from "@claudosseum/db/client";
+import { arenaLlmCalls } from "@claudosseum/db/schema";
 import { calculateCostCents } from "./costs";
 
 export type ArenaLlmCallType =

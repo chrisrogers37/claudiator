@@ -1,11 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { Db } from "@claudiator/db/client";
+import type { Db } from "@claudosseum/db/client";
 import {
   learnings,
   learningSkillLinks,
   skills,
   sourceSnapshots,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt";
 

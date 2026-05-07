@@ -1,5 +1,5 @@
-import { createDb } from "@claudiator/db/client";
-import { sourceConfigs } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { sourceConfigs } from "@claudosseum/db/schema";
 import { eq, sql, and, isNull, or } from "drizzle-orm";
 import { fetchSource } from "./fetchers";
 import { detectChanges } from "./change-detection";

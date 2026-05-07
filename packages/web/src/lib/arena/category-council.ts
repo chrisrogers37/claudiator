@@ -1,5 +1,5 @@
-import type { Db } from "@claudiator/db/client";
-import { skillCategories, skills } from "@claudiator/db/schema";
+import type { Db } from "@claudosseum/db/client";
+import { skillCategories, skills } from "@claudosseum/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { callLlm } from "./llm";
 import { categoryCouncilPrompt } from "./prompts";

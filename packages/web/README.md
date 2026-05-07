@@ -1,4 +1,4 @@
-# @claudiator/web
+# @claudosseum/web
 
 Next.js 15 (App Router) app deployed on Vercel. Hosts the dashboard, the arena, the workshop, the admin panel, the telemetry views, the cron endpoints, and all REST APIs the platform exposes outside MCP.
 
@@ -7,7 +7,7 @@ Next.js 15 (App Router) app deployed on Vercel. Hosts the dashboard, the arena, 
 - Next.js 15 + React 19 (App Router, server components)
 - NextAuth v5 (beta) — GitHub OAuth, Drizzle adapter
 - `@anthropic-ai/sdk` for arena LLM calls
-- `@claudiator/db` (workspace) — transpiled in `next.config.ts`
+- `@claudosseum/db` (workspace) — transpiled in `next.config.ts`
 
 ## Page routes
 
@@ -102,7 +102,7 @@ pnpm test:coverage   # with coverage
 ```bash
 # 1. Make sure the db package is built and migrated (see packages/db/README.md)
 # 2. Start the dev server
-pnpm --filter @claudiator/web dev    # http://localhost:3000
+pnpm --filter @claudosseum/web dev    # http://localhost:3000
 ```
 
 Required env (in `.env.local` at the repo root):
@@ -119,7 +119,7 @@ Optional: `ARENA_ENABLED=false` (kill switch — every arena route returns early
 
 ## Gotchas
 
-- **Stale `@claudiator/db` dist** — `next.config.ts` sets `transpilePackages: ["@claudiator/db"]`, but it still consumes compiled types. Rebuild db after schema changes (open issue: #22).
+- **Stale `@claudosseum/db` dist** — `next.config.ts` sets `transpilePackages: ["@claudosseum/db"]`, but it still consumes compiled types. Rebuild db after schema changes (open issue: #22).
 - **Arena kill switch is checked in 15+ route handlers.** A return-early pattern, not middleware. Adding a new arena route? Add the check.
 - **`arena-test` against prod is destructive.** The harness creates real LLM calls and writes battles. The DB-name check is a guardrail, not a guarantee — use a dedicated Neon branch.
 - **Admin role is database-only.** No UI to grant it; `UPDATE users SET role = 'admin' WHERE …` is the path.

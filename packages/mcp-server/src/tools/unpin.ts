@@ -5,7 +5,7 @@ import {
   skillVersions,
   userSkillPins,
   activityEvents,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const unpinSchema = z.object({
@@ -82,7 +82,7 @@ export async function unpin(
       },
     })
     .catch((err: Error) => {
-      console.error("[claudiator] unpin event logging error:", err.message);
+      console.error("[claudosseum] unpin event logging error:", err.message);
     });
 
   return {

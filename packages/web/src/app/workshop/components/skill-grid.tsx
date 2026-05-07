@@ -1,11 +1,11 @@
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import {
   skills,
   skillVersions,
   skillInvocations,
   skillFeedback,
   skillCategories,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { sql, asc, desc, eq, SQL } from "drizzle-orm";
 import { SkillCard } from "./skill-card";
 import { formatCategoryLabel } from "@/lib/format-category";

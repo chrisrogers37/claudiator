@@ -1,5 +1,5 @@
-import type { Db } from "@claudiator/db/client";
-import { intakeCandidates, sourceConfigs } from "@claudiator/db/schema";
+import type { Db } from "@claudosseum/db/client";
+import { intakeCandidates, sourceConfigs } from "@claudosseum/db/schema";
 import { eq } from "drizzle-orm";
 import { fetchGitHubRepoTree, fetchGitHubBlob } from "./fetchers";
 import { categorizeCandidate, scoreFightWorthiness, deduplicateCandidate } from "../arena/intake";

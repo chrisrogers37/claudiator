@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import {
   activityEvents,
   userInstalledVersions,
   skills,
   skillVersions,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, and, ne } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);

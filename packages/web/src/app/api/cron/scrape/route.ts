@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { runScraperJob } from "@/lib/pipeline/scraper";
 import { triggerDistillation } from "@/lib/pipeline/distillation";
-import { createDb } from "@claudiator/db/client";
-import { sourceConfigs, sourceSnapshots } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { sourceConfigs, sourceSnapshots } from "@claudosseum/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 
 export async function POST(request: Request) {

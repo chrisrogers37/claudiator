@@ -1,4 +1,4 @@
-# claudiator
+# claudosseum
 
 Skill intelligence engine for Claude Code. Registry-backed skill distribution with versioning, telemetry, feedback, and an automated arena for evaluating and evolving skills through gladiator-style combat.
 
@@ -13,20 +13,20 @@ packages/
 
 ## Skills Platform (Beta)
 
-Claudiator includes a centralized skills registry that replaces git-clone sync with a database-backed distribution system.
+Claudosseum includes a centralized skills registry that replaces git-clone sync with a database-backed distribution system.
 
 ### Setup
 
-1. Log in at https://claudiator.vercel.app with your GitHub account
+1. Log in at https://claudosseum.vercel.app with your GitHub account
 2. Generate an API key on the dashboard
 3. Add the MCP server to your `~/.claude/settings.json`:
 
 ```json
 {
   "mcpServers": {
-    "claudiator": {
+    "claudosseum": {
       "type": "http",
-      "url": "https://mcp.the-claudiator.railway.app/mcp",
+      "url": "https://mcp.the-claudosseum.railway.app/mcp",
       "headers": {
         "Authorization": "Bearer <your-token>"
       }
@@ -35,7 +35,7 @@ Claudiator includes a centralized skills registry that replaces git-clone sync w
 }
 ```
 
-4. Restart Claude Code. The `claudiator_sync` tool will be available.
+4. Restart Claude Code. The `claudosseum_sync` tool will be available.
 
 No local installation required — the MCP server is hosted on Railway.
 
@@ -43,15 +43,15 @@ No local installation required — the MCP server is hosted on Railway.
 
 | Tool | Description |
 |------|-------------|
-| `claudiator_sync` | Fetch latest skills from registry and write to `~/.claude/skills/` |
-| `claudiator_check_updates` | Check for available skill updates |
-| `claudiator_whoami` | Show your identity and token status |
-| `claudiator_log_invocation` | Log skill invocation for telemetry |
-| `claudiator_session_feedback` | Submit end-of-session skill ratings |
-| `claudiator_rollback` | Roll back a skill to a previous version |
-| `claudiator_pin` | Pin a skill to a specific version |
-| `claudiator_unpin` | Unpin a skill to resume tracking latest |
-| `claudiator_publish` | Publish a new skill version (admin) |
+| `claudosseum_sync` | Fetch latest skills from registry and write to `~/.claude/skills/` |
+| `claudosseum_check_updates` | Check for available skill updates |
+| `claudosseum_whoami` | Show your identity and token status |
+| `claudosseum_log_invocation` | Log skill invocation for telemetry |
+| `claudosseum_session_feedback` | Submit end-of-session skill ratings |
+| `claudosseum_rollback` | Roll back a skill to a previous version |
+| `claudosseum_pin` | Pin a skill to a specific version |
+| `claudosseum_unpin` | Unpin a skill to resume tracking latest |
+| `claudosseum_publish` | Publish a new skill version (admin) |
 
 ## Arena
 
@@ -70,9 +70,9 @@ Kill switch: set `ARENA_ENABLED=false` to disable all arena endpoints.
 
 ```bash
 pnpm install
-pnpm --filter @claudiator/db run build
-pnpm --filter @claudiator/mcp-server run build
-pnpm --filter @claudiator/web run dev
+pnpm --filter @claudosseum/db run build
+pnpm --filter @claudosseum/mcp-server run build
+pnpm --filter @claudosseum/web run dev
 ```
 
 ### Environment Variables

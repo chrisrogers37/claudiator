@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { validateToken } from "@claudiator/db/auth";
-import { createDb } from "@claudiator/db/client";
-import { skillInvocations, skillFeedback, skills } from "@claudiator/db/schema";
+import { validateToken } from "@claudosseum/db/auth";
+import { createDb } from "@claudosseum/db/client";
+import { skillInvocations, skillFeedback, skills } from "@claudosseum/db/schema";
 import { count, desc, gte, avg, sql, eq } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);

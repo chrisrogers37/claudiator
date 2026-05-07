@@ -1,5 +1,5 @@
-import type { Db } from "@claudiator/db/client";
-import { battleScenarios, battles, intakeCandidates, skillCategories } from "@claudiator/db/schema";
+import type { Db } from "@claudosseum/db/client";
+import { battleScenarios, battles, intakeCandidates, skillCategories } from "@claudosseum/db/schema";
 import { eq } from "drizzle-orm";
 import { scenarioGenerationPrompt } from "./prompts";
 import { callLlm } from "./llm";

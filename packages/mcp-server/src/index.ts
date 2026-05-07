@@ -3,15 +3,15 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import { createServer } from "./server.js";
-import { validateToken } from "@claudiator/db/auth";
-import { createDb } from "@claudiator/db/client";
-import { users } from "@claudiator/db/schema";
+import { validateToken } from "@claudosseum/db/auth";
+import { createDb } from "@claudosseum/db/client";
+import { users } from "@claudosseum/db/schema";
 import { eq } from "drizzle-orm";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
 const DATABASE_URL = process.env.DATABASE_URL;
 
-console.log(`Starting claudiator MCP server on port ${PORT}...`);
+console.log(`Starting claudosseum MCP server on port ${PORT}...`);
 
 if (!DATABASE_URL) {
   console.error("DATABASE_URL environment variable is required.");
@@ -98,5 +98,5 @@ app.all("/mcp", async (req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Claudiator MCP server listening on 0.0.0.0:${PORT}`);
+  console.log(`Claudosseum MCP server listening on 0.0.0.0:${PORT}`);
 });

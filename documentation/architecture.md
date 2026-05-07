@@ -114,7 +114,7 @@ The `admin` role is database-only — there is no UI to grant it. Users default 
 | `/admin/*` pages | Layout-level guard at `app/admin/layout.tsx`. `if (role !== "admin") redirect("/dashboard")`. Protects every admin page automatically. |
 | `POST /api/arena/categories` | Inline check in route handler (the only arena admin write). |
 | `POST /api/admin/*` | Inline check in each handler — returns 403 if `session.role !== "admin"`. |
-| MCP `claudiator_publish` tool | Checked server-side in `mcp-server`. |
+| MCP `claudosseum_publish` tool | Checked server-side in `mcp-server`. |
 
 ### Admin pages
 

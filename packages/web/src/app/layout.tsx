@@ -3,7 +3,7 @@ import { Nav } from "@/components/nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "claudiator",
+  title: "claudosseum",
   description: "Skill registry and distribution platform for Claude Code",
 };
 

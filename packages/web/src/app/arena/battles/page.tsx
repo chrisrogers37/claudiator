@@ -1,11 +1,11 @@
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import {
   battles,
   intakeCandidates,
   skills,
   skillVersions,
   skillCategories,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, desc, and, sql, count, type SQL } from "drizzle-orm";
 import Link from "next/link";
 import { extractChallengerName } from "@/lib/arena/extract-challenger-name";

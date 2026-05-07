@@ -1,4 +1,4 @@
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BattleStatusBadge } from "../components/battle-status-badge";

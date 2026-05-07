@@ -1,6 +1,6 @@
 # Local Development
 
-Get Claudiator running on your machine, from `git clone` to a working web app + MCP server + tests + arena harness.
+Get Claudosseum running on your machine, from `git clone` to a working web app + MCP server + tests + arena harness.
 
 > If anything below is wrong or out of date, the codebase is the source of truth — please update this doc.
 
@@ -46,7 +46,7 @@ NEXTAUTH_SECRET=          # openssl rand -base64 32
 ANTHROPIC_API_KEY=
 
 # MCP server URL surfaced in the dashboard config snippet
-NEXT_PUBLIC_MCP_SERVER_URL=https://mcp.the-claudiator.railway.app/mcp
+NEXT_PUBLIC_MCP_SERVER_URL=https://mcp.the-claudosseum.railway.app/mcp
 
 # Optional toggles
 ARENA_ENABLED=            # leave unset (default: enabled). Set to "false" to short-circuit /api/arena/*.
@@ -65,11 +65,11 @@ CRON_SECRET=              # required to invoke /api/cron/* outside of Vercel
 2. Copy the connection string into `DATABASE_URL`. Make sure it has `?sslmode=require`.
 3. Apply migrations:
    ```bash
-   pnpm --filter @claudiator/db migrate
+   pnpm --filter @claudosseum/db migrate
    ```
 4. Seed skills + categories from `global/skills/`:
    ```bash
-   pnpm --filter @claudiator/db seed
+   pnpm --filter @claudosseum/db seed
    ```
 
 ### Option B — Using local Postgres
@@ -97,10 +97,10 @@ There is no UI for this — it's a deliberate choice (see `documentation/archite
 
 ```bash
 # Build the db package once so its dist/ exists for type imports
-pnpm --filter @claudiator/db build
+pnpm --filter @claudosseum/db build
 
 # Start Next.js
-pnpm --filter @claudiator/web dev
+pnpm --filter @claudosseum/web dev
 ```
 
 Open http://localhost:3000, sign in with GitHub. You should land on `/dashboard`.
@@ -113,11 +113,11 @@ Useful pages once signed in:
 
 ## 6. Run the MCP server (optional locally)
 
-The MCP server is what Claude Code clients connect to. You don't need it running to develop the web app, but you do need it to test the `claudiator-sync` skill end-to-end.
+The MCP server is what Claude Code clients connect to. You don't need it running to develop the web app, but you do need it to test the `claudosseum-sync` skill end-to-end.
 
 ```bash
-pnpm --filter @claudiator/db build           # mcp-server imports from @claudiator/db dist
-pnpm --filter @claudiator/mcp-server dev     # runs tsx src/index.ts on :8080
+pnpm --filter @claudosseum/db build           # mcp-server imports from @claudosseum/db dist
+pnpm --filter @claudosseum/mcp-server dev     # runs tsx src/index.ts on :8080
 ```
 
 Health check: `curl http://localhost:8080/health` → `{"status":"ok"}`.
@@ -151,7 +151,7 @@ pnpm arena-test full --limit 3           # discover → battle-loop → status
 ## Common pitfalls
 
 - **`pnpm migrate` does nothing or errors on missing `DATABASE_URL`** — `.env.local` isn't at the repo root, or doesn't have a value. The migrate script reads `../../.env.local`.
-- **Web build fails with type errors from `@claudiator/db`** — the db package's `dist/` is stale. Rerun `pnpm --filter @claudiator/db build`. (Tracked in issue #22.)
+- **Web build fails with type errors from `@claudosseum/db`** — the db package's `dist/` is stale. Rerun `pnpm --filter @claudosseum/db build`. (Tracked in issue #22.)
 - **Arena routes return 503 / "Arena disabled"** — `ARENA_ENABLED=false` is set somewhere. The default (unset) is *enabled*; only the literal string `false` short-circuits the routes.
 - **`/api/cron/*` returns 401 locally** — `CRON_SECRET` isn't set, or the request is missing `Authorization: Bearer <secret>`. The cron is meant for Vercel; locally you can either set the secret and curl with the header, or just exercise the underlying code (`runScraperJob`, `runQualityControl`) from a script.
 - **Sign-in loop / OAuth callback mismatch** — the OAuth App's callback URL must be exactly `http://localhost:3000/api/auth/callback/github`. Trailing slash matters.

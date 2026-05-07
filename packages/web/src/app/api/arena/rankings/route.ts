@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createDb } from "@claudiator/db/client";
-import { arenaRankings, skills, skillCategories } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { arenaRankings, skills, skillCategories } from "@claudosseum/db/schema";
 import { desc, eq } from "drizzle-orm";
 
 const db = createDb(process.env.DATABASE_URL!);

@@ -1,4 +1,4 @@
-import type { Db } from "@claudiator/db/client";
+import type { Db } from "@claudosseum/db/client";
 import {
   battles,
   battleScenarios,
@@ -8,7 +8,7 @@ import {
   skillVersions,
   skillCategories,
   arenaLlmCalls,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { generateScenarios } from "./scenarios";
 import { judgeRound, aggregateJudgments } from "./judges";

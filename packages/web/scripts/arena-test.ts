@@ -1,4 +1,4 @@
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import {
   sourceConfigs,
   intakeCandidates,
@@ -7,7 +7,7 @@ import {
   skillCategories,
   arenaRankings,
   arenaLlmCalls,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, desc, sql, and, count } from "drizzle-orm";
 import { discoverSkillsFromRepo } from "../src/lib/pipeline/skill-discovery";
 import { findNextMatch, createBattle } from "../src/lib/arena/matchmaker";

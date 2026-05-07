@@ -1,3 +1,3 @@
-// Re-export from @claudiator/db for convenience
-export { createDb } from "@claudiator/db/client";
-export type { Db } from "@claudiator/db/client";
+// Re-export from @claudosseum/db for convenience
+export { createDb } from "@claudosseum/db/client";
+export type { Db } from "@claudosseum/db/client";

@@ -1,5 +1,5 @@
-import type { Db } from "@claudiator/db/client";
-import { battleJudgments } from "@claudiator/db/schema";
+import type { Db } from "@claudosseum/db/client";
+import { battleJudgments } from "@claudosseum/db/schema";
 import { judgingPrompt, judgingUserPrompt } from "./prompts";
 import { callLlm } from "./llm";
 import type { ScoringRubric } from "./types";

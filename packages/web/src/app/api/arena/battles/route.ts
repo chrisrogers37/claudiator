@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createDb } from "@claudiator/db/client";
-import { battles, intakeCandidates, skills, skillCategories } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { battles, intakeCandidates, skills, skillCategories } from "@claudosseum/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { createBattle } from "@/lib/arena/matchmaker";
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
       championSkillId = candidate.matchedChampionSkillId;
 
-      const { skillVersions } = await import("@claudiator/db/schema");
+      const { skillVersions } = await import("@claudosseum/db/schema");
       const { and } = await import("drizzle-orm");
       const [version] = await db
         .select({ id: skillVersions.id })

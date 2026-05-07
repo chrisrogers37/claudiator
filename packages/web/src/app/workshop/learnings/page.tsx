@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { createDb } from "@claudiator/db/client";
-import { learnings } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { learnings } from "@claudosseum/db/schema";
 import { desc, eq, sql, and } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { LearningCard } from "./components/learning-card";

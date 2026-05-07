@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skills, skillVersions } from "@claudiator/db/schema";
-import { publishNewVersion } from "@claudiator/db/publish";
+import { skills, skillVersions } from "@claudosseum/db/schema";
+import { publishNewVersion } from "@claudosseum/db/publish";
 import { eq, and } from "drizzle-orm";
 
 export const publishSchema = z.object({

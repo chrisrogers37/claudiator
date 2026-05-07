@@ -1,4 +1,4 @@
-# Claudiator -- Next Steps
+# Claudosseum -- Next Steps
 
 **Date:** 2026-04-25
 **Status:** Planning
@@ -16,10 +16,10 @@
 
 ### 1. Populate Skills from Local Directory
 
-The ~45 skills at `~/.claude/skills/` need to enter the system. The GitHub discovery pipeline expects a repo with SKILL.md files, but most skills aren't in the claudiator repo anymore (only 2 remain in `global/skills/`).
+The ~45 skills at `~/.claude/skills/` need to enter the system. The GitHub discovery pipeline expects a repo with SKILL.md files, but most skills aren't in the claudosseum repo anymore (only 2 remain in `global/skills/`).
 
 **Options:**
-- **A) Commit skills back to repo** -- add `~/.claude/skills/*` contents into `global/skills/`, then run the GitHub discovery pipeline against `chrisrogers37/claudiator`
+- **A) Commit skills back to repo** -- add `~/.claude/skills/*` contents into `global/skills/`, then run the GitHub discovery pipeline against `chrisrogers37/claudosseum`
 - **B) Build a local intake path** -- new script that reads from `~/.claude/skills/` directly and creates intake candidates, bypassing GitHub
 - **C) Seed directly** -- update `seed.ts` to read from `~/.claude/skills/` and populate skills + versions, then run the category council on each
 

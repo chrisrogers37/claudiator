@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import {
   users,
   activityEvents,
   skillInvocations,
   apiTokens,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { sql, desc, asc } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Card } from "@/components/ui/card";

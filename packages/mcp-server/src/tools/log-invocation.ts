@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skillInvocations, skills } from "@claudiator/db/schema";
+import { skillInvocations, skills } from "@claudosseum/db/schema";
 import { eq } from "drizzle-orm";
 
 export const logInvocationSchema = z.object({
@@ -34,7 +34,7 @@ export async function logInvocation(
 
   if (!skill) {
     console.warn(
-      `[claudiator] skill not found for slug "${args.skill_slug}", skipping invocation log`
+      `[claudosseum] skill not found for slug "${args.skill_slug}", skipping invocation log`
     );
     return {
       content: [{ type: "text" as const, text: "Invocation skipped: unknown skill slug." }],
@@ -52,7 +52,7 @@ export async function logInvocation(
       durationMs: args.duration_ms ?? null,
     })
     .catch((err: Error) => {
-      console.error("[claudiator] telemetry error:", err.message);
+      console.error("[claudosseum] telemetry error:", err.message);
     });
 
   return {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import { auth } from "@/lib/auth";
 import { getBattleDetail } from "@/lib/arena/battle-queries";
 

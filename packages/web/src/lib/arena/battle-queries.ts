@@ -1,4 +1,4 @@
-import type { Db } from "@claudiator/db/client";
+import type { Db } from "@claudosseum/db/client";
 import {
   battles,
   battleScenarios,
@@ -7,7 +7,7 @@ import {
   skills,
   intakeCandidates,
   skillCategories,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, inArray, asc } from "drizzle-orm";
 
 export async function getBattleDetail(db: Db, battleId: string) {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DbClient } from "../lib/db.js";
-import { skillFeedback, skills } from "@claudiator/db/schema";
+import { skillFeedback, skills } from "@claudosseum/db/schema";
 import { eq, inArray } from "drizzle-orm";
 
 export const sessionFeedbackSchema = z.object({

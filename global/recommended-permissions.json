@@ -1,5 +1,5 @@
 {
-  "_comment": "Recommended permission patterns for ~/.claude/settings.json. Used by /claudiator-setup to offer missing permissions. Categories are presented to the user for opt-in. Never removes existing entries.",
+  "_comment": "Recommended permission patterns for ~/.claude/settings.json. Used by /claudosseum-setup to offer missing permissions. Categories are presented to the user for opt-in. Never removes existing entries.",
   "categories": [
     {
       "id": "core",
@@ -94,7 +94,7 @@
     {
       "id": "sandbox-extensions",
       "name": "Sandbox Filesystem Extensions",
-      "description": "Extends sandbox write access to directories used by claudiator workflows. Only useful when sandbox is enabled.",
+      "description": "Extends sandbox write access to directories used by claudosseum workflows. Only useful when sandbox is enabled.",
       "default": false,
       "permissions": [
         "Edit(/tmp/**)",
@@ -102,20 +102,20 @@
       ]
     },
     {
-      "id": "claudiator-mcp",
-      "name": "Claudiator Platform",
-      "description": "MCP tool permissions for the claudiator skills platform (telemetry, feedback, sync). Requires MCP server URL configured in settings.json.",
+      "id": "claudosseum-mcp",
+      "name": "Claudosseum Platform",
+      "description": "MCP tool permissions for the claudosseum skills platform (telemetry, feedback, sync). Requires MCP server URL configured in settings.json.",
       "default": false,
       "permissions": [
-        "mcp__claudiator__claudiator_log_invocation",
-        "mcp__claudiator__claudiator_session_feedback",
-        "mcp__claudiator__claudiator_sync",
-        "mcp__claudiator__claudiator_check_updates",
-        "mcp__claudiator__claudiator_whoami",
-        "mcp__claudiator__claudiator_rollback",
-        "mcp__claudiator__claudiator_pin",
-        "mcp__claudiator__claudiator_unpin",
-        "mcp__claudiator__claudiator_publish"
+        "mcp__claudosseum__claudosseum_log_invocation",
+        "mcp__claudosseum__claudosseum_session_feedback",
+        "mcp__claudosseum__claudosseum_sync",
+        "mcp__claudosseum__claudosseum_check_updates",
+        "mcp__claudosseum__claudosseum_whoami",
+        "mcp__claudosseum__claudosseum_rollback",
+        "mcp__claudosseum__claudosseum_pin",
+        "mcp__claudosseum__claudosseum_unpin",
+        "mcp__claudosseum__claudosseum_publish"
       ]
     }
   ]

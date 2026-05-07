@@ -1,5 +1,5 @@
 import type { DbClient } from "../lib/db.js";
-import { skills, skillVersions, userSkillPins } from "@claudiator/db/schema";
+import { skills, skillVersions, userSkillPins } from "@claudosseum/db/schema";
 import { eq, and, notInArray, inArray } from "drizzle-orm";
 
 interface InstalledSkill {

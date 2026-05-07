@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { createDb } from "@claudiator/db/client";
-import { sourceConfigs } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { sourceConfigs } from "@claudosseum/db/schema";
 import { eq } from "drizzle-orm";
 import { discoverSkillsFromRepo } from "@/lib/pipeline/skill-discovery";
 

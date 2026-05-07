@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import { scoreFightWorthiness } from "@/lib/arena/intake";
 
 const db = createDb(process.env.DATABASE_URL!);

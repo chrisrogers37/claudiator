@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createDb } from "@claudiator/db/client";
-import { skillFeedback, skills } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { skillFeedback, skills } from "@claudosseum/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 

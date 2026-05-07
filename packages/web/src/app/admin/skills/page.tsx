@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { createDb } from "@claudiator/db/client";
-import { skills, skillInvocations, skillFeedback, skillCategories } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { skills, skillInvocations, skillFeedback, skillCategories } from "@claudosseum/db/schema";
 import { sql, desc, asc, eq } from "drizzle-orm";
 import { SectionHeader } from "@/components/ui/section-header";
 import { formatCategoryLabel } from "@/lib/format-category";

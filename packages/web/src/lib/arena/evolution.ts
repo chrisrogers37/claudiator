@@ -1,11 +1,11 @@
-import type { Db } from "@claudiator/db/client";
+import type { Db } from "@claudosseum/db/client";
 import {
   battles,
   battleRounds,
   battleJudgments,
   intakeCandidates,
   skillVersions,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { evolutionPrompt } from "./prompts";
 import { createBattle } from "./matchmaker";

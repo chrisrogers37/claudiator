@@ -1,5 +1,5 @@
-import { createDb } from "@claudiator/db/client";
-import { skillCategories } from "@claudiator/db/schema";
+import { createDb } from "@claudosseum/db/client";
+import { skillCategories } from "@claudosseum/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";

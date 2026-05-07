@@ -1,4 +1,4 @@
-import { createDb } from "@claudiator/db/client";
+import { createDb } from "@claudosseum/db/client";
 import {
   skillCategories,
   skills,
@@ -6,7 +6,7 @@ import {
   arenaEloHistory,
   battles,
   intakeCandidates,
-} from "@claudiator/db/schema";
+} from "@claudosseum/db/schema";
 import { eq, desc, asc, sql } from "drizzle-orm";
 import { extractChallengerName } from "@/lib/arena/extract-challenger-name";
 import { FightCard } from "../components/fight-card";

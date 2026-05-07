@@ -47,7 +47,7 @@ A continuously-refreshed champion roster grounded in real-world performance.
 - Leaderboard UI improvements that don't change the underlying data model
 
 **Current sprint focus:**
-1. Rename pass: claudiator → claudosseum across code, URLs, infrastructure, OAuth callbacks, documentation
+1. Rename pass: claudosseum → claudosseum across code, URLs, infrastructure, OAuth callbacks, documentation
 2. Public arena leaderboard as a marketing-grade page anyone can browse without logging in
 3. Define the promotion contract to clauDNA: what triggers a promotion, what the artifact looks like, how it gets handed off
 4. Wind-down plan for legacy MCP distribution tools — deprecate in favor of clauDNA, with migration notes for existing users

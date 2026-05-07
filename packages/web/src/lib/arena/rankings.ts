@@ -1,5 +1,5 @@
-import type { Db } from "@claudiator/db/client";
-import { arenaRankings, arenaEloHistory, skills } from "@claudiator/db/schema";
+import type { Db } from "@claudosseum/db/client";
+import { arenaRankings, arenaEloHistory, skills } from "@claudosseum/db/schema";
 import { eq } from "drizzle-orm";
 
 const K_FACTOR = 32;
