@@ -4,9 +4,9 @@ Production runs on three providers:
 
 | Provider | What lives there | Build / deploy config |
 |----------|-------------------|------------------------|
-| **Neon** | PostgreSQL database (schema + data) | `packages/db/drizzle/` migrations applied via `pnpm --filter @claudiator/db migrate` |
-| **Vercel** | Next.js web app (`@claudiator/web`) — dashboard, arena UI, all REST APIs, cron jobs | Auto-deploy on push; cron schedules in `packages/web/vercel.json` |
-| **Railway** | MCP server (`@claudiator/mcp-server`) at `https://mcp.the-claudiator.railway.app/mcp` | `/railway.toml` |
+| **Neon** | PostgreSQL database (schema + data) | `packages/db/drizzle/` migrations applied via `pnpm --filter @claudosseum/db migrate` |
+| **Vercel** | Next.js web app (`@claudosseum/web`) — dashboard, arena UI, all REST APIs, cron jobs | Auto-deploy on push; cron schedules in `packages/web/vercel.json` |
+| **Railway** | MCP server (`@claudosseum/mcp-server`) at `https://mcp.the-claudosseum.railway.app/mcp` | `/railway.toml` |
 
 For env-var meanings see [`architecture.md`](./architecture.md) and the per-package READMEs. This doc covers only what's deployment-specific.
 
@@ -46,13 +46,13 @@ A complete answer should let a new engineer know:
 
 Things to nail down:
 
-- **Who runs `pnpm --filter @claudiator/db migrate` against the production `DATABASE_URL`?** A maintainer from their laptop? CI on merge to `main`? A separate manual step?
+- **Who runs `pnpm --filter @claudosseum/db migrate` against the production `DATABASE_URL`?** A maintainer from their laptop? CI on merge to `main`? A separate manual step?
 - **When?** Before or after the Vercel deploy that depends on the new schema? (Drizzle migrations are forward-only by convention — a Vercel deploy that lands first against an old schema can fail traffic.)
 - **What's the gating control?** PR review of `packages/db/drizzle/` is currently the only checkpoint.
 - **Do you ever run a migration against prod from a feature branch?** (Most teams say no — but worth stating explicitly.)
 - **Who has access to the production `DATABASE_URL`?** (Auditable answer.)
 
-A worked example for a typical change would be valuable — e.g., "when adding a new column to `skills`, the sequence is: open PR → review schema diff → merge → run `pnpm --filter @claudiator/db migrate` against prod → verify with a quick Drizzle Studio look → confirm Vercel picked up the deploy."
+A worked example for a typical change would be valuable — e.g., "when adding a new column to `skills`, the sequence is: open PR → review schema diff → merge → run `pnpm --filter @claudosseum/db migrate` against prod → verify with a quick Drizzle Studio look → confirm Vercel picked up the deploy."
 
 ## Secrets rotation
 
@@ -80,8 +80,8 @@ The fast version of "we lost everything, rebuild prod":
 2. **Vercel** — create a project pointing at this repo, root `packages/web`; set every env var from the matrix above; first deploy.
 3. **Railway** — create a project pointing at this repo; the build/start commands come from `railway.toml`; set `DATABASE_URL`; deploy.
 4. **GitHub OAuth App** — register, set callback to `<NEXTAUTH_URL>/api/auth/callback/github`, populate `GITHUB_CLIENT_ID/SECRET` in Vercel.
-5. **Migrations** — `pnpm --filter @claudiator/db migrate` against the new prod `DATABASE_URL`.
-6. **Seed** — `pnpm --filter @claudiator/db seed` to populate skills + categories from `global/skills/`.
+5. **Migrations** — `pnpm --filter @claudosseum/db migrate` against the new prod `DATABASE_URL`.
+6. **Seed** — `pnpm --filter @claudosseum/db seed` to populate skills + categories from `global/skills/`.
 7. **First admin user** — sign in once via the deployed app, then `UPDATE users SET role='admin' WHERE github_login='<you>'` directly in Neon.
 8. **Smoke test** — sign in, generate an API token, hit `/health` on the MCP server, run `pnpm arena-test status` from a maintainer machine pointed at the new DB.
 
