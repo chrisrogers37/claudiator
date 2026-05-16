@@ -64,8 +64,7 @@ Emitted when a user provides a rating for a skill used in a session.
   "data": {
     "skill_slug": "quick-commit",
     "session_id": "sess_abc123",
-    "rating": 4,
-    "comment": "fast but missed a file"
+    "rating": 4
   }
 }
 ```
@@ -76,7 +75,8 @@ Emitted when a user provides a rating for a skill used in a session.
 | `skill_slug` | string | yes | Skill directory name |
 | `session_id` | string | yes | Session that triggered the feedback |
 | `rating` | integer (1-5) | yes | User satisfaction rating |
-| `comment` | string (≤200 chars) | no | Free-text feedback, truncated at source |
+
+> **Phase 1: rating-only.** Comment transmission deferred to follow-up issue pending scoping decision (privacy implications of free-text across fleet boundary).
 
 ### `skill_error`
 
@@ -233,6 +233,8 @@ ALTER TABLE "skillFeedback"
 | (hardcoded) | `skillInvocations.source = 'fleet'` |
 | (no user) | `skillInvocations.userId = NULL` |
 
+> **Note:** The fleet event's top-level `source` field (`"vitals"` / `"pulse"`) is NOT transmitted to the DB. The DB `source` column is hardcoded to `"fleet"` by the push job — it distinguishes MCP-originated vs fleet-originated records, not the internal fleet subsystem that emitted the event.
+
 For `skill_feedback`:
 
 | Fleet event field | → Claudosseum column |
@@ -240,7 +242,6 @@ For `skill_feedback`:
 | `data.skill_slug` | `skillFeedback.skillSlug` → resolved to `skillId` |
 | `data.session_id` | `skillFeedback.sessionId` |
 | `data.rating` | `skillFeedback.rating` |
-| `data.comment` | `skillFeedback.comment` (truncated to 200 chars at source, 1000 max at DB) |
 | `fleet_id` (envelope) | `skillFeedback.fleetId` |
 | (hardcoded) | `skillFeedback.source = 'fleet'` |
 | (no user) | `skillFeedback.userId = NULL` |
@@ -333,7 +334,6 @@ Only these fields cross the fleet boundary:
 | `success` | `true` | Boolean outcome, no detail |
 | `duration_ms` | `4200` | Numeric, no content |
 | `rating` | `4` | Numeric, no content |
-| `comment` | `"fast but missed a file"` | User-authored, opt-in, truncated |
 | `error_class` | `"timeout"` | Enum, no detail |
 | `bot` | `"astrid"` | Bot name (not a person) |
 | `fleet_id` | `"crog-eng-team"` | Fleet identifier |
@@ -456,9 +456,14 @@ Single migration adding:
 
 ---
 
-## Open Questions (for maintainer review)
+## Open Questions
 
-1. **Comment privacy:** Should `skill_feedback.comment` be transmitted at all? It's user-authored and could contain anything. Alternative: transmit only the numeric rating.
-2. **Fleet identity in UI:** Should Claudosseum surface which fleets contributed signal to a skill's ranking? Or keep fleet identity internal?
-3. **Skill slug resolution:** What happens when a fleet uses a skill that doesn't exist in Claudosseum's registry? (Current proposal: drop the event.) Alternative: auto-register as "community" skill.
-4. **Historical backfill:** Should the push job send events from the full 7-day local window on first enable, or only forward-looking?
+### Resolved
+
+1. **Comment privacy:** Rating-only for Phase 1. Comment transmission deferred to a follow-up issue pending scoping decision on free-text privacy across the fleet boundary.
+2. **Skill slug resolution:** Drop events with unknown slugs. The push job logs a local warning; Claudosseum returns the count in its `"dropped"` response field. No auto-registration — skills must exist in the registry before fleet signal can attach to them.
+3. **Historical backfill:** No. Forward-looking only. On first enable the push job begins from the current cycle — it does not replay the 7-day local window. This avoids a burst of stale data skewing recent rankings.
+
+### Unresolved (for maintainer review)
+
+1. **Fleet identity in UI:** Should Claudosseum surface which fleets contributed signal to a skill's ranking? Or keep fleet identity internal-only for debugging?
